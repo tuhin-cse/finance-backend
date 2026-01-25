@@ -34,11 +34,23 @@ async function bootstrap() {
 
   // Swagger setup
   const config = new DocumentBuilder()
-    .setTitle('NestJS Authentication API')
+    .setTitle('BizFinance Pro API')
     .setDescription(
-      'API documentation for authentication using JWT and Passport',
+      'Complete API documentation for BizFinance Pro - An AI-powered all-in-one platform for managing any business type while seamlessly integrating personal financial management.',
     )
-    .setVersion('1.0')
+    .setVersion('1.0.0')
+    .addTag('Authentication', 'User authentication and authorization endpoints')
+    .addTag('Organizations', 'Multi-tenant organization management')
+    .addTag('Accounts', 'Bank account management and balance tracking')
+    .addTag('Transactions', 'Transaction management with categorization')
+    .addTag('Categories', 'Income and expense categorization')
+    .addTag('Budgets', 'Budget management with tracking and alerts')
+    .addTag('Goals', 'Financial goal tracking')
+    .addTag('Contacts', 'CRM contact management')
+    .addTag('Invoices', 'Invoicing and payment management')
+    .addTag('Products', 'Product and inventory management')
+    .addTag('Projects', 'Project management with tasks')
+    .addTag('Expenses', 'Expense tracking and reimbursement')
     .addBearerAuth(
       {
         type: 'http',

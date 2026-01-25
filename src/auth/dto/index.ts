@@ -2,3 +2,8 @@ export * from './refresh-token.dto';
 export * from './token-response.dto';
 export * from './signin.dto';
 export * from './signup.dto';
+export * from './two-factor.dto';
+export * from './password.dto';
+export * from './session.dto';
+export * from './verification.dto';
+export * from './social-auth.dto';

@@ -1,8 +1,5 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+// BizFinance Pro - Complete Database Schema
+// Generated for MongoDB with Prisma
 
 generator client {
   provider = "prisma-client-js"
@@ -13,18 +10,1290 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ============================================
+// SECTION 1: USER MANAGEMENT & AUTHENTICATION
+// ============================================
+
 model User {
-  id           String    @id @default(auto()) @map("_id") @db.ObjectId
-  email        String    @unique
-  password     String
-  firstName    String?
-  lastName     String?
-  role         Role      @default(USER)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id               String           @id @default(auto()) @map("_id") @db.ObjectId
+  email            String           @unique
+  password         String? // Optional for SSO users
+  firstName        String?
+  lastName         String?
+  phone            String?
+  avatar           String?
+  role             UserRole         @default(USER)
+  subscriptionTier SubscriptionTier @default(STARTER)
+
+  // Authentication & Security
+  twoFactorEnabled Boolean  @default(false)
+  twoFactorSecret  String?
+  biometricEnabled Boolean  @default(false)
+  trustedDevices   String[] // Device IDs
+  ipWhitelist      String[]
+  ssoProvider      String? // Google, Microsoft, etc.
+  ssoId            String?
+
+  // Session Management
+  sessions      Session[]
+  refreshTokens RefreshToken[]
+
+  // Profile & Preferences
+  timezone     String @default("UTC")
+  language     String @default("en")
+  currency     String @default("USD")
+  dateFormat   String @default("MM/DD/YYYY")
+  numberFormat String @default("en-US")
+
+  // Organizations & Teams
+  organizationIds String[]       @db.ObjectId
+  organizations   Organization[] @relation(fields: [organizationIds], references: [id])
+  teamMemberIds   String[]       @db.ObjectId
+  teamMemberships TeamMember[]   @relation(fields: [teamMemberIds], references: [id])
+
+  // Relationships
+  accounts      Account[]
+  transactions  Transaction[]
+  budgets       Budget[]
+  goals         Goal[]
+  invoices      Invoice[]
+  contacts      Contact[]
+  leads         Lead[]
+  projects      Project[]
+  tasks         Task[]
+  expenses      Expense[]
+  timeEntries   TimeEntry[]
+  auditLogs     AuditLog[]
+  notifications Notification[]
+  documents     Document[]
+
+  // Metadata
+  lastLoginAt     DateTime?
+  emailVerified   Boolean   @default(false)
+  emailVerifiedAt DateTime?
+  isActive        Boolean   @default(true)
+  isDeleted       Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  @@index([organizationIds])
+  @@map("users")
 }
 
-enum Role {
+model Session {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId         String   @db.ObjectId
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token          String   @unique
+  deviceId       String?
+  deviceName     String?
+  ipAddress      String?
+  userAgent      String?
+  location       String?
+  isActive       Boolean  @default(true)
+  expiresAt      DateTime
+  lastActivityAt DateTime @default(now())
+  createdAt      DateTime @default(now())
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model RefreshToken {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model Organization {
+  id           String        @id @default(auto()) @map("_id") @db.ObjectId
+  name         String
+  legalName    String?
+  businessType BusinessType?
+  industry     String?
+  ein          String? // Tax ID
+
+  // Branding
+  logo         String?
+  colorScheme  Json?
+  customDomain String?
+
+  // Settings
+  fiscalYearStart Int    @default(1) // Month (1-12)
+  baseCurrency    String @default("USD")
+  timezone        String @default("UTC")
+
+  // Subscription
+  subscriptionTier      SubscriptionTier   @default(STARTER)
+  subscriptionStatus    SubscriptionStatus @default(TRIAL)
+  subscriptionStartDate DateTime?
+  subscriptionEndDate   DateTime?
+
+  // Members
+  userIds String[] @db.ObjectId
+  users   User[]   @relation(fields: [userIds], references: [id])
+  teams   Team[]
+
+  // Business Data
+  accounts     Account[]
+  transactions Transaction[]
+  invoices     Invoice[]
+  contacts     Contact[]
+  products     Product[]
+  inventory    InventoryItem[]
+
+  // Metadata
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([name])
+  @@map("organizations")
+}
+
+model Team {
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  organizationId String       @db.ObjectId
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  description    String?
+  members        TeamMember[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
+  @@map("teams")
+}
+
+model TeamMember {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  teamId      String   @db.ObjectId
+  team        Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  userIds     String[] @db.ObjectId
+  users       User[]   @relation(fields: [userIds], references: [id])
+  role        TeamRole @default(MEMBER)
+  permissions String[]
+  joinedAt    DateTime @default(now())
+
+  @@index([teamId])
+  @@index([userIds])
+  @@map("team_members")
+}
+
+// ============================================
+// SECTION 2: PERSONAL FINANCE
+// ============================================
+
+model Account {
+  id             String        @id @default(auto()) @map("_id") @db.ObjectId
+  userId         String        @db.ObjectId
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId String?       @db.ObjectId
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+
+  name            String
+  type            AccountType
+  subType         String?
+  institutionName String?
+  accountNumber   String? // Last 4 digits
+  routingNumber   String?
+
+  // Balances
+  currentBalance   Float  @default(0)
+  availableBalance Float?
+  currency         String @default("USD")
+
+  // Connections
+  plaidAccountId   String?
+  plaidAccessToken String?
+  isConnected      Boolean   @default(false)
+  lastSyncedAt     DateTime?
+
+  // Settings
+  isActive          Boolean @default(true)
+  isPrimary         Boolean @default(false)
+  excludeFromBudget Boolean @default(false)
+
+  // Relationships
+  transactions Transaction[]
+
+  // Metadata
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([organizationId])
+  @@map("accounts")
+}
+
+model Transaction {
+  id             String        @id @default(auto()) @map("_id") @db.ObjectId
+  userId         String        @db.ObjectId
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId String?       @db.ObjectId
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  accountId      String        @db.ObjectId
+  account        Account       @relation(fields: [accountId], references: [id])
+
+  // Transaction Details
+  date        DateTime
+  description String
+  amount      Float
+  currency    String            @default("USD")
+  type        TransactionType
+  status      TransactionStatus @default(POSTED)
+
+  // Categorization
+  categoryId  String?   @db.ObjectId
+  category    Category? @relation(fields: [categoryId], references: [id])
+  subcategory String?
+  tags        String[]
+
+  // Merchant Information
+  merchantName     String?
+  merchantCategory String?
+  merchantLogo     String?
+  location         Json? // GPS coordinates
+
+  // Additional Info
+  notes               String?
+  receiptUrl          String?
+  isRecurring         Boolean  @default(false)
+  recurringId         String?  @db.ObjectId
+  isSplit             Boolean  @default(false)
+  splitTransactionIds String[] @db.ObjectId
+
+  // AI & Automation
+  aiConfidence Float?
+  isAutoCatego Boolean @default(false)
+  isDuplicate  Boolean @default(false)
+
+  // External IDs
+  plaidTransactionId String?
+  externalId         String?
+
+  // Reconciliation
+  isReconciled Boolean   @default(false)
+  reconciledAt DateTime?
+
+  // Metadata
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([accountId])
+  @@index([date])
+  @@index([categoryId])
+  @@map("transactions")
+}
+
+model Category {
+  id           String        @id @default(auto()) @map("_id") @db.ObjectId
+  name         String
+  type         CategoryType // INCOME, EXPENSE, TRANSFER
+  icon         String?
+  color        String?
+  parentId     String?       @db.ObjectId
+  isSystem     Boolean       @default(false) // Built-in categories
+  isActive     Boolean       @default(true)
+  transactions Transaction[]
+  budgets      Budget[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([type])
+  @@map("categories")
+}
+
+model Budget {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId     String   @db.ObjectId
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categoryId String   @db.ObjectId
+  category   Category @relation(fields: [categoryId], references: [id])
+
+  name      String
+  type      BudgetType // MONTHLY, WEEKLY, ANNUAL, CUSTOM
+  amount    Float
+  period    String // YYYY-MM for monthly
+  startDate DateTime
+  endDate   DateTime
+
+  // Budget Settings
+  rolloverUnused Boolean @default(false)
+  alertThreshold Float   @default(0.8) // Alert at 80%
+
+  // Tracking
+  spent     Float @default(0)
+  remaining Float @default(0)
+
+  // Metadata
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([categoryId])
+  @@index([period])
+  @@map("budgets")
+}
+
+model Goal {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  userId String @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name          String
+  description   String?
+  type          GoalType // SAVINGS, DEBT_PAYOFF, INVESTMENT, etc.
+  targetAmount  Float
+  currentAmount Float     @default(0)
+  targetDate    DateTime?
+
+  // Settings
+  autoContribute        Boolean @default(false)
+  contributionAmount    Float?
+  contributionFrequency String? // WEEKLY, MONTHLY, etc.
+
+  // Progress
+  progress Float      @default(0) // Percentage
+  status   GoalStatus @default(IN_PROGRESS)
+
+  // Metadata
+  isActive    Boolean   @default(true)
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([type])
+  @@map("goals")
+}
+
+model Investment {
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String  @db.ObjectId
+  accountId String? @db.ObjectId
+
+  symbol        String
+  name          String
+  type          InvestmentType // STOCK, BOND, CRYPTO, ETF, etc.
+  quantity      Float
+  purchasePrice Float
+  currentPrice  Float
+  currency      String         @default("USD")
+
+  // Performance
+  totalValue       Float
+  totalGain        Float
+  totalGainPercent Float
+
+  // Metadata
+  purchaseDate DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([userId])
+  @@index([symbol])
+  @@map("investments")
+}
+
+model Debt {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  userId String @db.ObjectId
+
+  name           String
+  type           DebtType // CREDIT_CARD, MORTGAGE, AUTO_LOAN, etc.
+  originalAmount Float
+  currentBalance Float
+  interestRate   Float
+  minimumPayment Float
+  paymentDueDate Int // Day of month
+
+  // Creditor Info
+  creditorName  String?
+  accountNumber String?
+
+  // Payment Strategy
+  payoffStrategy PayoffStrategy? // SNOWBALL, AVALANCHE
+
+  // Metadata
+  startDate DateTime
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@map("debts")
+}
+
+// ============================================
+// SECTION 3: BUSINESS OPERATIONS - CRM & SALES
+// ============================================
+
+model Contact {
+  id             String        @id @default(auto()) @map("_id") @db.ObjectId
+  userId         String        @db.ObjectId
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId String?       @db.ObjectId
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+
+  // Basic Info
+  type        ContactType // CUSTOMER, VENDOR, EMPLOYEE, LEAD
+  firstName   String?
+  lastName    String?
+  companyName String?
+  displayName String
+
+  // Contact Details
+  email   String?
+  phone   String?
+  mobile  String?
+  website String?
+
+  // Address
+  addressLine1 String?
+  addressLine2 String?
+  city         String?
+  state        String?
+  postalCode   String?
+  country      String?
+
+  // Business Details
+  taxId        String?
+  paymentTerms String?
+  creditLimit  Float?
+  currency     String  @default("USD")
+
+  // CRM Fields
+  leadSource      String?
+  customerSegment String?
+  lifetimeValue   Float?
+  tags            String[]
+
+  // Relationships
+  invoices Invoice[]
+  leads    Lead[]
+
+  // Metadata
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([organizationId])
+  @@index([email])
+  @@index([type])
+  @@map("contacts")
+}
+
+model Lead {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contactId String?  @db.ObjectId
+  contact   Contact? @relation(fields: [contactId], references: [id])
+
+  // Lead Info
+  title       String
+  description String?
+  value       Float?
+  status      LeadStatus @default(NEW)
+  stage       String?
+  source      String?
+
+  // Scoring & Priority
+  score    Float? // AI lead score
+  priority PriorityLevel @default(MEDIUM)
+
+  // Assignment
+  assignedToId String? @db.ObjectId
+
+  // Conversion
+  isConverted Boolean   @default(false)
+  convertedAt DateTime?
+
+  // Metadata
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@map("leads")
+}
+
+// ============================================
+// SECTION 4: INVOICING & PAYMENTS
+// ============================================
+
+model Invoice {
+  id             String        @id @default(auto()) @map("_id") @db.ObjectId
+  userId         String        @db.ObjectId
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId String?       @db.ObjectId
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  contactId      String        @db.ObjectId
+  contact        Contact       @relation(fields: [contactId], references: [id])
+
+  // Invoice Details
+  invoiceNumber String        @unique
+  date          DateTime
+  dueDate       DateTime
+  status        InvoiceStatus @default(DRAFT)
+
+  // Line Items
+  items InvoiceItem[]
+
+  // Amounts
+  subtotal       Float
+  taxAmount      Float  @default(0)
+  discountAmount Float  @default(0)
+  total          Float
+  amountPaid     Float  @default(0)
+  amountDue      Float
+  currency       String @default("USD")
+
+  // Payment Info
+  paymentTerms  String?
+  paymentMethod String?
+
+  // Notes
+  notes String?
+  terms String?
+
+  // Recurring
+  isRecurring        Boolean @default(false)
+  recurringFrequency String?
+
+  // Payments
+  payments Payment[]
+
+  // Metadata
+  sentAt    DateTime?
+  paidAt    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([organizationId])
+  @@index([contactId])
+  @@index([status])
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  invoiceId String   @db.ObjectId
+  invoice   Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  productId String?  @db.ObjectId
+  product   Product? @relation(fields: [productId], references: [id])
+
+  description     String
+  quantity        Float
+  unitPrice       Float
+  taxRate         Float  @default(0)
+  discountPercent Float  @default(0)
+  total           Float
+
+  @@index([invoiceId])
+  @@map("invoice_items")
+}
+
+model Payment {
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  invoiceId String  @db.ObjectId
+  invoice   Invoice @relation(fields: [invoiceId], references: [id])
+
+  amount          Float
+  currency        String        @default("USD")
+  method          PaymentMethod
+  date            DateTime
+  referenceNumber String?
+
+  // Payment Gateway
+  gatewayProvider      String? // Stripe, PayPal, etc.
+  gatewayTransactionId String?
+
+  notes     String?
+  createdAt DateTime @default(now())
+
+  @@index([invoiceId])
+  @@map("payments")
+}
+
+// ============================================
+// SECTION 5: PRODUCTS & INVENTORY
+// ============================================
+
+model Product {
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  organizationId String       @db.ObjectId
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  // Basic Info
+  name        String
+  description String?
+  sku         String?     @unique
+  barcode     String?
+  type        ProductType @default(PRODUCT)
+
+  // Pricing
+  unitPrice Float
+  costPrice Float?
+  currency  String @default("USD")
+
+  // Inventory
+  trackInventory  Boolean @default(false)
+  stockQuantity   Int     @default(0)
+  reorderPoint    Int?
+  reorderQuantity Int?
+
+  // Categorization
+  category String?
+  tags     String[]
+
+  // Tax
+  taxable Boolean @default(true)
+  taxRate Float?
+
+  // Relationships
+  invoiceItems   InvoiceItem[]
+  inventoryItems InventoryItem[]
+
+  // Metadata
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId])
+  @@map("products")
+}
+
+model InventoryItem {
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  organizationId String       @db.ObjectId
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  productId      String       @db.ObjectId
+  product        Product      @relation(fields: [productId], references: [id])
+
+  // Location
+  locationId   String?   @db.ObjectId
+  location     Location? @relation(fields: [locationId], references: [id])
+  warehouseBin String?
+
+  // Quantity
+  quantity          Int
+  reservedQuantity  Int @default(0)
+  availableQuantity Int
+
+  // Tracking
+  batchNumber    String?
+  serialNumber   String?
+  expirationDate DateTime?
+
+  // Valuation
+  unitCost   Float
+  totalValue Float
+
+  // Metadata
+  lastCountedAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([organizationId])
+  @@index([productId])
+  @@index([locationId])
+  @@map("inventory_items")
+}
+
+model Location {
+  id             String          @id @default(auto()) @map("_id") @db.ObjectId
+  name           String
+  type           LocationType // WAREHOUSE, STORE, OFFICE
+  address        String?
+  inventoryItems InventoryItem[]
+  isActive       Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@map("locations")
+}
+
+// ============================================
+// SECTION 6: PROJECTS & TASKS
+// ============================================
+
+model Project {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  userId String @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name        String
+  description String?
+  status      ProjectStatus @default(PLANNING)
+  priority    PriorityLevel @default(MEDIUM)
+
+  // Dates
+  startDate DateTime?
+  endDate   DateTime?
+  deadline  DateTime?
+
+  // Budget
+  budgetAmount Float?
+  actualCost   Float  @default(0)
+
+  // Client
+  clientId String? @db.ObjectId
+
+  // Relationships
+  tasks       Task[]
+  timeEntries TimeEntry[]
+
+  // Metadata
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@map("projects")
+}
+
+model Task {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId String?  @db.ObjectId
+  project   Project? @relation(fields: [projectId], references: [id])
+
+  title       String
+  description String?
+  status      TaskStatus    @default(TODO)
+  priority    PriorityLevel @default(MEDIUM)
+
+  // Assignment
+  assignedToId String? @db.ObjectId
+
+  // Dates
+  dueDate     DateTime?
+  startDate   DateTime?
+  completedAt DateTime?
+
+  // Time Tracking
+  estimatedHours Float?
+  timeEntries    TimeEntry[]
+
+  // Dependencies
+  parentTaskId String?  @db.ObjectId
+  dependsOn    String[] @db.ObjectId
+
+  // Metadata
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([projectId])
+  @@index([status])
+  @@map("tasks")
+}
+
+model TimeEntry {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId String?  @db.ObjectId
+  project   Project? @relation(fields: [projectId], references: [id])
+  taskId    String?  @db.ObjectId
+  task      Task?    @relation(fields: [taskId], references: [id])
+
+  description String?
+  date        DateTime
+  startTime   DateTime?
+  endTime     DateTime?
+  duration    Float // Hours
+
+  // Billing
+  isBillable  Boolean @default(false)
+  hourlyRate  Float?
+  totalAmount Float?
+
+  // Metadata
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([projectId])
+  @@index([date])
+  @@map("time_entries")
+}
+
+// ============================================
+// SECTION 7: EXPENSES
+// ============================================
+
+model Expense {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  userId String @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  date        DateTime
+  description String
+  amount      Float
+  currency    String   @default("USD")
+  category    String?
+
+  // Receipt
+  receiptUrl     String?
+  receiptOcrData Json?
+
+  // Reimbursement
+  isReimbursable      Boolean             @default(false)
+  reimbursementStatus ReimbursementStatus @default(PENDING)
+  reimbursedAt        DateTime?
+
+  // Project/Client
+  projectId String? @db.ObjectId
+  clientId  String? @db.ObjectId
+
+  // Tax
+  isTaxDeductible Boolean @default(false)
+
+  // Approval
+  approvalStatus ApprovalStatus @default(PENDING)
+  approvedBy     String?        @db.ObjectId
+  approvedAt     DateTime?
+
+  // Metadata
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([date])
+  @@map("expenses")
+}
+
+// ============================================
+// SECTION 8: HR & PAYROLL
+// ============================================
+
+model Employee {
+  id     String  @id @default(auto()) @map("_id") @db.ObjectId
+  userId String? @db.ObjectId
+
+  // Personal Info
+  firstName   String
+  lastName    String
+  email       String    @unique
+  phone       String?
+  dateOfBirth DateTime?
+  ssn         String? // Encrypted
+
+  // Employment
+  employeeNumber  String?        @unique
+  department      String?
+  position        String
+  employmentType  EmploymentType // FULL_TIME, PART_TIME, CONTRACTOR
+  hireDate        DateTime
+  terminationDate DateTime?
+
+  // Compensation
+  salary       Float?
+  hourlyRate   Float?
+  payFrequency PayFrequency? // WEEKLY, BI_WEEKLY, MONTHLY
+  currency     String        @default("USD")
+
+  // Tax Info
+  taxFilingStatus       String?
+  allowances            Int?
+  additionalWithholding Float?
+
+  // Address
+  addressLine1 String?
+  addressLine2 String?
+  city         String?
+  state        String?
+  postalCode   String?
+  country      String?
+
+  // Metadata
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("employees")
+}
+
+// ============================================
+// SECTION 9: DOCUMENTS & FILES
+// ============================================
+
+model Document {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  userId String @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name        String
+  description String?
+  type        DocumentType
+  fileUrl     String
+  fileSize    Int // Bytes
+  mimeType    String
+
+  // Organization
+  folder String?
+  tags   String[]
+
+  // Related Entities
+  relatedType String? // Invoice, Expense, Project, etc.
+  relatedId   String? @db.ObjectId
+
+  // Access Control
+  isPublic   Boolean  @default(false)
+  sharedWith String[] @db.ObjectId
+
+  // Metadata
+  uploadedAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([userId])
+  @@index([type])
+  @@index([relatedType, relatedId])
+  @@map("documents")
+}
+
+// ============================================
+// SECTION 10: NOTIFICATIONS & ALERTS
+// ============================================
+
+model Notification {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  userId String @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type     NotificationType
+  title    String
+  message  String
+  priority PriorityLevel    @default(MEDIUM)
+
+  // Action
+  actionUrl   String?
+  actionLabel String?
+
+  // Related Entity
+  relatedType String?
+  relatedId   String? @db.ObjectId
+
+  // Status
+  isRead Boolean   @default(false)
+  readAt DateTime?
+
+  // Delivery
+  channels String[] // EMAIL, PUSH, SMS, IN_APP
+  sentAt   DateTime?
+
+  // Metadata
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+// ============================================
+// SECTION 11: AUDIT & SECURITY
+// ============================================
+
+model AuditLog {
+  id     String  @id @default(auto()) @map("_id") @db.ObjectId
+  userId String? @db.ObjectId
+  user   User?   @relation(fields: [userId], references: [id])
+
+  action     String // CREATE, UPDATE, DELETE, LOGIN, etc.
+  resource   String // User, Invoice, Transaction, etc.
+  resourceId String? @db.ObjectId
+
+  // Change Details
+  oldValue Json?
+  newValue Json?
+
+  // Context
+  ipAddress String?
+  userAgent String?
+  location  String?
+
+  // Metadata
+  timestamp DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([resource])
+  @@index([timestamp])
+  @@map("audit_logs")
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum UserRole {
   USER
   ADMIN
+  SUPER_ADMIN
+  ACCOUNTANT
+  MANAGER
+  EMPLOYEE
+}
+
+enum SubscriptionTier {
+  STARTER
+  PROFESSIONAL
+  BUSINESS
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  SUSPENDED
+}
+
+enum BusinessType {
+  SOLE_PROPRIETOR
+  PARTNERSHIP
+  LLC
+  S_CORP
+  C_CORP
+  NON_PROFIT
+  OTHER
+}
+
+enum TeamRole {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+enum AccountType {
+  CHECKING
+  SAVINGS
+  CREDIT_CARD
+  INVESTMENT
+  LOAN
+  CASH
+  OTHER
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+  TRANSFER
+}
+
+enum TransactionStatus {
+  PENDING
+  POSTED
+  CLEARED
+  VOID
+}
+
+enum CategoryType {
+  INCOME
+  EXPENSE
+  TRANSFER
+}
+
+enum BudgetType {
+  MONTHLY
+  WEEKLY
+  ANNUAL
+  QUARTERLY
+  CUSTOM
+}
+
+enum GoalType {
+  SAVINGS
+  DEBT_PAYOFF
+  INVESTMENT
+  EMERGENCY_FUND
+  RETIREMENT
+  CUSTOM
+}
+
+enum GoalStatus {
+  PLANNING
+  IN_PROGRESS
+  COMPLETED
+  ABANDONED
+}
+
+enum InvestmentType {
+  STOCK
+  BOND
+  ETF
+  MUTUAL_FUND
+  CRYPTO
+  REAL_ESTATE
+  COMMODITY
+  OTHER
+}
+
+enum DebtType {
+  CREDIT_CARD
+  MORTGAGE
+  AUTO_LOAN
+  STUDENT_LOAN
+  PERSONAL_LOAN
+  BUSINESS_LOAN
+  LINE_OF_CREDIT
+  OTHER
+}
+
+enum PayoffStrategy {
+  SNOWBALL
+  AVALANCHE
+  HIGHEST_RATE
+  CUSTOM
+}
+
+enum ContactType {
+  CUSTOMER
+  VENDOR
+  EMPLOYEE
+  LEAD
+  PARTNER
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  PROPOSAL
+  NEGOTIATION
+  WON
+  LOST
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  VIEWED
+  PARTIAL
+  PAID
+  OVERDUE
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  CASH
+  CHECK
+  CREDIT_CARD
+  DEBIT_CARD
+  ACH
+  WIRE
+  PAYPAL
+  STRIPE
+  CRYPTO
+  OTHER
+}
+
+enum ProductType {
+  PRODUCT
+  SERVICE
+  BUNDLE
+  DIGITAL
+}
+
+enum LocationType {
+  WAREHOUSE
+  STORE
+  OFFICE
+  VIRTUAL
+}
+
+enum ProjectStatus {
+  PLANNING
+  IN_PROGRESS
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  COMPLETED
+  BLOCKED
+  CANCELLED
+}
+
+enum PriorityLevel {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum ReimbursementStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  REIMBURSED
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACTOR
+  INTERN
+  TEMP
+}
+
+enum PayFrequency {
+  WEEKLY
+  BI_WEEKLY
+  SEMI_MONTHLY
+  MONTHLY
+}
+
+enum DocumentType {
+  RECEIPT
+  INVOICE
+  CONTRACT
+  REPORT
+  POLICY
+  FORM
+  OTHER
+}
+
+enum NotificationType {
+  SYSTEM
+  PAYMENT
+  BUDGET
+  TASK
+  PROJECT
+  EXPENSE
+  INVOICE
+  ALERT
+  REMINDER
+  SOCIAL
 }
