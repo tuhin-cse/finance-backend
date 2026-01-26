@@ -7,8 +7,11 @@ import {
   Param,
   Delete,
   UseGuards,
+  Query,
+  ParseIntPipe,
+  DefaultValuePipe,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { GoalsService } from './goals.service';
 import { CreateGoalDto, UpdateGoalDto } from './dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -33,9 +36,15 @@ export class GoalsController {
 
   @Get()
   @ApiOperation({ summary: 'Get all financial goals' })
-  @ApiResponse({ status: 200, description: 'List of goals' })
-  findAll(@GetUser('id') userId: string) {
-    return this.goalsService.findAll(userId);
+  @ApiQuery({ name: 'page', required: false, description: 'Page number', type: Number })
+  @ApiQuery({ name: 'limit', required: false, description: 'Items per page', type: Number })
+  @ApiResponse({ status: 200, description: 'Paginated list of goals' })
+  findAll(
+    @GetUser('id') userId: string,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number = 1,
+    @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number = 10,
+  ) {
+    return this.goalsService.findAll(userId, page, limit);
   }
 
   @Get(':id')

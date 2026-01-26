@@ -7,8 +7,11 @@ import {
   Param,
   Delete,
   UseGuards,
+  Query,
+  ParseIntPipe,
+  DefaultValuePipe,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { OrganizationsService } from './organizations.service';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
@@ -35,9 +38,15 @@ export class OrganizationsController {
 
   @Get()
   @ApiOperation({ summary: 'Get all organizations for the current user' })
-  @ApiResponse({ status: 200, description: 'List of organizations' })
-  findAll(@GetUser('id') userId: string) {
-    return this.organizationsService.findAll(userId);
+  @ApiQuery({ name: 'page', required: false, description: 'Page number', type: Number })
+  @ApiQuery({ name: 'limit', required: false, description: 'Items per page', type: Number })
+  @ApiResponse({ status: 200, description: 'Paginated list of organizations' })
+  findAll(
+    @GetUser('id') userId: string,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number = 1,
+    @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number = 10,
+  ) {
+    return this.organizationsService.findAll(userId, page, limit);
   }
 
   @Get(':id')

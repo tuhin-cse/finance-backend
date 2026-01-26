@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { createPaginatedResponse } from '../common/utils/pagination.util';
 
 @Injectable()
 export class InvoicesService {
@@ -19,15 +20,22 @@ export class InvoicesService {
     });
   }
 
-  findAll(userId: string, status?: string) {
+  async findAll(userId: string, status?: string, page: number = 1, limit: number = 10) {
     const where: any = { userId };
     if (status) where.status = status;
     
-    return this.prisma.invoice.findMany({
-      where,
-      include: { contact: true, _count: { select: { items: true } } },
-      orderBy: { date: 'desc' },
-    });
+    const [docs, totalDocs] = await Promise.all([
+      this.prisma.invoice.findMany({
+        where,
+        include: { contact: true, _count: { select: { items: true } } },
+        orderBy: { date: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.invoice.count({ where }),
+    ]);
+
+    return createPaginatedResponse(docs, totalDocs, page, limit);
   }
 
   async findOne(id: string, userId: string) {

@@ -1,12 +1,12 @@
 // BizFinance Pro - Complete Database Schema
-// Generated for MongoDB with Prisma
+// PostgreSQL with UUID support
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "mongodb"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -15,7 +15,7 @@ datasource db {
 // ============================================
 
 model User {
-  id               String           @id @default(auto()) @map("_id") @db.ObjectId
+  id               String           @id @default(uuid())
   email            String           @unique
   password         String? // Optional for SSO users
   firstName        String?
@@ -46,10 +46,8 @@ model User {
   numberFormat String @default("en-US")
 
   // Organizations & Teams
-  organizationIds String[]       @db.ObjectId
-  organizations   Organization[] @relation(fields: [organizationIds], references: [id])
-  teamMemberIds   String[]       @db.ObjectId
-  teamMemberships TeamMember[]   @relation(fields: [teamMemberIds], references: [id])
+  organizations   UserOrganization[]
+  teamMemberships TeamMember[]
 
   // Relationships
   accounts      Account[]
@@ -77,13 +75,12 @@ model User {
   updatedAt       DateTime  @updatedAt
   deletedAt       DateTime?
 
-  @@index([organizationIds])
   @@map("users")
 }
 
 model Session {
-  id             String   @id @default(auto()) @map("_id") @db.ObjectId
-  userId         String   @db.ObjectId
+  id             String   @id @default(uuid())
+  userId         String
   user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   token          String   @unique
   deviceId       String?
@@ -101,8 +98,8 @@ model Session {
 }
 
 model RefreshToken {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  userId    String   @db.ObjectId
+  id        String   @id @default(uuid())
+  userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   token     String   @unique
   expiresAt DateTime
@@ -113,7 +110,7 @@ model RefreshToken {
 }
 
 model Organization {
-  id           String        @id @default(auto()) @map("_id") @db.ObjectId
+  id           String        @id @default(uuid())
   name         String
   legalName    String?
   businessType BusinessType?
@@ -137,9 +134,8 @@ model Organization {
   subscriptionEndDate   DateTime?
 
   // Members
-  userIds String[] @db.ObjectId
-  users   User[]   @relation(fields: [userIds], references: [id])
-  teams   Team[]
+  userOrganizations UserOrganization[]
+  teams             Team[]
 
   // Business Data
   accounts     Account[]
@@ -158,9 +154,25 @@ model Organization {
   @@map("organizations")
 }
 
+// Join table for User-Organization many-to-many relationship
+model UserOrganization {
+  id             String       @id @default(uuid())
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  role           String? // Role in this organization
+  joinedAt       DateTime     @default(now())
+
+  @@unique([userId, organizationId])
+  @@index([userId])
+  @@index([organizationId])
+  @@map("user_organizations")
+}
+
 model Team {
-  id             String       @id @default(auto()) @map("_id") @db.ObjectId
-  organizationId String       @db.ObjectId
+  id             String       @id @default(uuid())
+  organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   name           String
   description    String?
@@ -173,17 +185,18 @@ model Team {
 }
 
 model TeamMember {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  teamId      String   @db.ObjectId
-  team        Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  userIds     String[] @db.ObjectId
-  users       User[]   @relation(fields: [userIds], references: [id])
-  role        TeamRole @default(MEMBER)
+  id       String   @id @default(uuid())
+  teamId   String
+  team     Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role     TeamRole @default(MEMBER)
   permissions String[]
-  joinedAt    DateTime @default(now())
+  joinedAt DateTime @default(now())
 
+  @@unique([teamId, userId])
   @@index([teamId])
-  @@index([userIds])
+  @@index([userId])
   @@map("team_members")
 }
 
@@ -192,10 +205,10 @@ model TeamMember {
 // ============================================
 
 model Account {
-  id             String        @id @default(auto()) @map("_id") @db.ObjectId
-  userId         String        @db.ObjectId
+  id             String        @id @default(uuid())
+  userId         String
   user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  organizationId String?       @db.ObjectId
+  organizationId String?
   organization   Organization? @relation(fields: [organizationId], references: [id])
 
   name            String
@@ -234,12 +247,12 @@ model Account {
 }
 
 model Transaction {
-  id             String        @id @default(auto()) @map("_id") @db.ObjectId
-  userId         String        @db.ObjectId
+  id             String        @id @default(uuid())
+  userId         String
   user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  organizationId String?       @db.ObjectId
+  organizationId String?
   organization   Organization? @relation(fields: [organizationId], references: [id])
-  accountId      String        @db.ObjectId
+  accountId      String
   account        Account       @relation(fields: [accountId], references: [id])
 
   // Transaction Details
@@ -251,7 +264,7 @@ model Transaction {
   status      TransactionStatus @default(POSTED)
 
   // Categorization
-  categoryId  String?   @db.ObjectId
+  categoryId  String?
   category    Category? @relation(fields: [categoryId], references: [id])
   subcategory String?
   tags        String[]
@@ -266,9 +279,9 @@ model Transaction {
   notes               String?
   receiptUrl          String?
   isRecurring         Boolean  @default(false)
-  recurringId         String?  @db.ObjectId
+  recurringId         String?
   isSplit             Boolean  @default(false)
-  splitTransactionIds String[] @db.ObjectId
+  splitTransactionIds String[]
 
   // AI & Automation
   aiConfidence Float?
@@ -295,12 +308,12 @@ model Transaction {
 }
 
 model Category {
-  id           String        @id @default(auto()) @map("_id") @db.ObjectId
+  id           String        @id @default(uuid())
   name         String
   type         CategoryType // INCOME, EXPENSE, TRANSFER
   icon         String?
   color        String?
-  parentId     String?       @db.ObjectId
+  parentId     String?
   isSystem     Boolean       @default(false) // Built-in categories
   isActive     Boolean       @default(true)
   transactions Transaction[]
@@ -313,10 +326,10 @@ model Category {
 }
 
 model Budget {
-  id         String   @id @default(auto()) @map("_id") @db.ObjectId
-  userId     String   @db.ObjectId
+  id         String   @id @default(uuid())
+  userId     String
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  categoryId String   @db.ObjectId
+  categoryId String
   category   Category @relation(fields: [categoryId], references: [id])
 
   name      String
@@ -346,8 +359,8 @@ model Budget {
 }
 
 model Goal {
-  id     String @id @default(auto()) @map("_id") @db.ObjectId
-  userId String @db.ObjectId
+  id     String @id @default(uuid())
+  userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   name          String
@@ -378,9 +391,9 @@ model Goal {
 }
 
 model Investment {
-  id        String  @id @default(auto()) @map("_id") @db.ObjectId
-  userId    String  @db.ObjectId
-  accountId String? @db.ObjectId
+  id        String  @id @default(uuid())
+  userId    String
+  accountId String?
 
   symbol        String
   name          String
@@ -406,8 +419,8 @@ model Investment {
 }
 
 model Debt {
-  id     String @id @default(auto()) @map("_id") @db.ObjectId
-  userId String @db.ObjectId
+  id     String @id @default(uuid())
+  userId String
 
   name           String
   type           DebtType // CREDIT_CARD, MORTGAGE, AUTO_LOAN, etc.
@@ -439,10 +452,10 @@ model Debt {
 // ============================================
 
 model Contact {
-  id             String        @id @default(auto()) @map("_id") @db.ObjectId
-  userId         String        @db.ObjectId
+  id             String        @id @default(uuid())
+  userId         String
   user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  organizationId String?       @db.ObjectId
+  organizationId String?
   organization   Organization? @relation(fields: [organizationId], references: [id])
 
   // Basic Info
@@ -495,10 +508,10 @@ model Contact {
 }
 
 model Lead {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  userId    String   @db.ObjectId
+  id        String   @id @default(uuid())
+  userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  contactId String?  @db.ObjectId
+  contactId String?
   contact   Contact? @relation(fields: [contactId], references: [id])
 
   // Lead Info
@@ -514,7 +527,7 @@ model Lead {
   priority PriorityLevel @default(MEDIUM)
 
   // Assignment
-  assignedToId String? @db.ObjectId
+  assignedToId String?
 
   // Conversion
   isConverted Boolean   @default(false)
@@ -534,12 +547,12 @@ model Lead {
 // ============================================
 
 model Invoice {
-  id             String        @id @default(auto()) @map("_id") @db.ObjectId
-  userId         String        @db.ObjectId
+  id             String        @id @default(uuid())
+  userId         String
   user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  organizationId String?       @db.ObjectId
+  organizationId String?
   organization   Organization? @relation(fields: [organizationId], references: [id])
-  contactId      String        @db.ObjectId
+  contactId      String
   contact        Contact       @relation(fields: [contactId], references: [id])
 
   // Invoice Details
@@ -589,10 +602,10 @@ model Invoice {
 }
 
 model InvoiceItem {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  invoiceId String   @db.ObjectId
+  id        String   @id @default(uuid())
+  invoiceId String
   invoice   Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  productId String?  @db.ObjectId
+  productId String?
   product   Product? @relation(fields: [productId], references: [id])
 
   description     String
@@ -607,8 +620,8 @@ model InvoiceItem {
 }
 
 model Payment {
-  id        String  @id @default(auto()) @map("_id") @db.ObjectId
-  invoiceId String  @db.ObjectId
+  id        String  @id @default(uuid())
+  invoiceId String
   invoice   Invoice @relation(fields: [invoiceId], references: [id])
 
   amount          Float
@@ -633,8 +646,8 @@ model Payment {
 // ============================================
 
 model Product {
-  id             String       @id @default(auto()) @map("_id") @db.ObjectId
-  organizationId String       @db.ObjectId
+  id             String       @id @default(uuid())
+  organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
 
   // Basic Info
@@ -677,14 +690,14 @@ model Product {
 }
 
 model InventoryItem {
-  id             String       @id @default(auto()) @map("_id") @db.ObjectId
-  organizationId String       @db.ObjectId
+  id             String       @id @default(uuid())
+  organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
-  productId      String       @db.ObjectId
+  productId      String
   product        Product      @relation(fields: [productId], references: [id])
 
   // Location
-  locationId   String?   @db.ObjectId
+  locationId   String?
   location     Location? @relation(fields: [locationId], references: [id])
   warehouseBin String?
 
@@ -714,7 +727,7 @@ model InventoryItem {
 }
 
 model Location {
-  id             String          @id @default(auto()) @map("_id") @db.ObjectId
+  id             String          @id @default(uuid())
   name           String
   type           LocationType // WAREHOUSE, STORE, OFFICE
   address        String?
@@ -731,8 +744,8 @@ model Location {
 // ============================================
 
 model Project {
-  id     String @id @default(auto()) @map("_id") @db.ObjectId
-  userId String @db.ObjectId
+  id     String @id @default(uuid())
+  userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   name        String
@@ -750,7 +763,7 @@ model Project {
   actualCost   Float  @default(0)
 
   // Client
-  clientId String? @db.ObjectId
+  clientId String?
 
   // Relationships
   tasks       Task[]
@@ -767,10 +780,10 @@ model Project {
 }
 
 model Task {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  userId    String   @db.ObjectId
+  id        String   @id @default(uuid())
+  userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  projectId String?  @db.ObjectId
+  projectId String?
   project   Project? @relation(fields: [projectId], references: [id])
 
   title       String
@@ -779,7 +792,7 @@ model Task {
   priority    PriorityLevel @default(MEDIUM)
 
   // Assignment
-  assignedToId String? @db.ObjectId
+  assignedToId String?
 
   // Dates
   dueDate     DateTime?
@@ -791,8 +804,8 @@ model Task {
   timeEntries    TimeEntry[]
 
   // Dependencies
-  parentTaskId String?  @db.ObjectId
-  dependsOn    String[] @db.ObjectId
+  parentTaskId String?
+  dependsOn    String[]
 
   // Metadata
   createdAt DateTime @default(now())
@@ -805,12 +818,12 @@ model Task {
 }
 
 model TimeEntry {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  userId    String   @db.ObjectId
+  id        String   @id @default(uuid())
+  userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  projectId String?  @db.ObjectId
+  projectId String?
   project   Project? @relation(fields: [projectId], references: [id])
-  taskId    String?  @db.ObjectId
+  taskId    String?
   task      Task?    @relation(fields: [taskId], references: [id])
 
   description String?
@@ -839,8 +852,8 @@ model TimeEntry {
 // ============================================
 
 model Expense {
-  id     String @id @default(auto()) @map("_id") @db.ObjectId
-  userId String @db.ObjectId
+  id     String @id @default(uuid())
+  userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   date        DateTime
@@ -859,15 +872,15 @@ model Expense {
   reimbursedAt        DateTime?
 
   // Project/Client
-  projectId String? @db.ObjectId
-  clientId  String? @db.ObjectId
+  projectId String?
+  clientId  String?
 
   // Tax
   isTaxDeductible Boolean @default(false)
 
   // Approval
   approvalStatus ApprovalStatus @default(PENDING)
-  approvedBy     String?        @db.ObjectId
+  approvedBy     String?
   approvedAt     DateTime?
 
   // Metadata
@@ -884,8 +897,8 @@ model Expense {
 // ============================================
 
 model Employee {
-  id     String  @id @default(auto()) @map("_id") @db.ObjectId
-  userId String? @db.ObjectId
+  id     String  @id @default(uuid())
+  userId String?
 
   // Personal Info
   firstName   String
@@ -935,8 +948,8 @@ model Employee {
 // ============================================
 
 model Document {
-  id     String @id @default(auto()) @map("_id") @db.ObjectId
-  userId String @db.ObjectId
+  id     String @id @default(uuid())
+  userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   name        String
@@ -952,11 +965,11 @@ model Document {
 
   // Related Entities
   relatedType String? // Invoice, Expense, Project, etc.
-  relatedId   String? @db.ObjectId
+  relatedId   String?
 
   // Access Control
   isPublic   Boolean  @default(false)
-  sharedWith String[] @db.ObjectId
+  sharedWith String[]
 
   // Metadata
   uploadedAt DateTime @default(now())
@@ -974,8 +987,8 @@ model Document {
 // ============================================
 
 model Notification {
-  id     String @id @default(auto()) @map("_id") @db.ObjectId
-  userId String @db.ObjectId
+  id     String @id @default(uuid())
+  userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   type     NotificationType
@@ -989,7 +1002,7 @@ model Notification {
 
   // Related Entity
   relatedType String?
-  relatedId   String? @db.ObjectId
+  relatedId   String?
 
   // Status
   isRead Boolean   @default(false)
@@ -1013,13 +1026,13 @@ model Notification {
 // ============================================
 
 model AuditLog {
-  id     String  @id @default(auto()) @map("_id") @db.ObjectId
-  userId String? @db.ObjectId
+  id     String  @id @default(uuid())
+  userId String?
   user   User?   @relation(fields: [userId], references: [id])
 
   action     String // CREATE, UPDATE, DELETE, LOGIN, etc.
   resource   String // User, Invoice, Transaction, etc.
-  resourceId String? @db.ObjectId
+  resourceId String?
 
   // Change Details
   oldValue Json?

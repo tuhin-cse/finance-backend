@@ -7,6 +7,7 @@ import {
   IsBoolean,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { BusinessType, SubscriptionTier } from '@prisma/client';
 
 export class CreateOrganizationDto {
   @ApiProperty({ example: 'Acme Corporation', description: 'Organization name' })
@@ -18,10 +19,10 @@ export class CreateOrganizationDto {
   @IsOptional()
   legalName?: string;
 
-  @ApiPropertyOptional({ example: 'LLC', description: 'Business type' })
-  @IsString()
+  @ApiPropertyOptional({ example: 'LLC', description: 'Business type', enum: BusinessType })
+  @IsEnum(BusinessType)
   @IsOptional()
-  businessType?: string;
+  businessType?: BusinessType;
 
   @ApiPropertyOptional({ example: 'Technology', description: 'Industry sector' })
   @IsString()
@@ -63,8 +64,8 @@ export class CreateOrganizationDto {
   @IsOptional()
   timezone?: string;
 
-  @ApiPropertyOptional({ example: 'PROFESSIONAL', description: 'Subscription tier' })
-  @IsString()
+  @ApiPropertyOptional({ example: 'PROFESSIONAL', description: 'Subscription tier', enum: SubscriptionTier })
+  @IsEnum(SubscriptionTier)
   @IsOptional()
-  subscriptionTier?: string;
+  subscriptionTier?: SubscriptionTier;
 }

@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { UpdateTransactionDto } from './dto/update-transaction.dto';
 import { FilterTransactionsDto } from './dto/filter-transactions.dto';
+import { createPaginatedResponse } from '../common/utils/pagination.util';
 
 @Injectable()
 export class TransactionsService {
@@ -93,7 +94,10 @@ export class TransactionsService {
       ];
     }
 
-    const [transactions, total] = await Promise.all([
+    const page = filters?.page || 1;
+    const limit = filters?.limit || 50;
+
+    const [docs, totalDocs] = await Promise.all([
       this.prisma.transaction.findMany({
         where,
         include: {
@@ -115,18 +119,13 @@ export class TransactionsService {
           },
         },
         orderBy: { date: 'desc' },
-        skip: filters?.skip || 0,
-        take: filters?.take || 50,
+        skip: (page - 1) * limit,
+        take: limit,
       }),
       this.prisma.transaction.count({ where }),
     ]);
 
-    return {
-      data: transactions,
-      total,
-      skip: filters?.skip || 0,
-      take: filters?.take || 50,
-    };
+    return createPaginatedResponse(docs, totalDocs, page, limit);
   }
 
   async findOne(id: string, userId: string) {

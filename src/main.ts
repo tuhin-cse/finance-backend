@@ -65,10 +65,16 @@ async function bootstrap() {
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api', app, document);
+  SwaggerModule.setup('api', app, document, {
+    jsonDocumentUrl: '/api-json',
+    swaggerOptions: {
+      persistAuthorization: true,
+    },
+  });
 
   const port: number = configService.get('app.port', 3000);
   await app.listen(port);
   console.log(`Application is running on: http://localhost:${port}/api`);
 }
+
 bootstrap();

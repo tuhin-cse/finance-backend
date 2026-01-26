@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateAccountDto } from './dto/create-account.dto';
-import { UpdateAccountDto } from './dto/update-account.dto';
+import { CreateAccountDto, UpdateAccountDto } from './dto';
+import { createPaginatedResponse } from '../common/utils/pagination.util';
 
 @Injectable()
 export class AccountsService {
@@ -16,25 +16,29 @@ export class AccountsService {
     });
   }
 
-  async findAll(userId: string, organizationId?: string) {
+  async findAll(userId: string, organizationId?: string, page: number = 1, limit: number = 10) {
     const where: any = { userId, isActive: true };
-    
+
     if (organizationId) {
       where.organizationId = organizationId;
     }
 
-    return this.prisma.account.findMany({
-      where,
-      include: {
-        _count: {
-          select: { transactions: true },
+    const [docs, totalDocs] = await Promise.all([
+      this.prisma.account.findMany({
+        where,
+        include: {
+          _count: {
+            select: { transactions: true },
+          },
         },
-      },
-      orderBy: [
-        { isPrimary: 'desc' },
-        { createdAt: 'desc' },
-      ],
-    });
+        orderBy: [{ isPrimary: 'desc' }, { createdAt: 'desc' }],
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.account.count({ where }),
+    ]);
+
+    return createPaginatedResponse(docs, totalDocs, page, limit);
   }
 
   async findOne(id: string, userId: string) {
@@ -82,7 +86,7 @@ export class AccountsService {
 
     return this.prisma.account.update({
       where: { id },
-      data: { 
+      data: {
         currentBalance: balance,
         updatedAt: new Date(),
       },
@@ -95,7 +99,7 @@ export class AccountsService {
     // TODO: Implement Plaid sync logic here
     return this.prisma.account.update({
       where: { id },
-      data: { 
+      data: {
         lastSyncedAt: new Date(),
       },
     });

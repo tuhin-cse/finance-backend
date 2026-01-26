@@ -49,14 +49,14 @@ export class FilterTransactionsDto {
   search?: string;
 
   @IsInt()
-  @Min(0)
+  @Min(1)
   @IsOptional()
   @Type(() => Number)
-  skip?: number;
+  page?: number;
 
   @IsInt()
   @Min(1)
   @IsOptional()
   @Type(() => Number)
-  take?: number;
+  limit?: number;
 }

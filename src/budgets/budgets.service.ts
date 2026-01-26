@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateBudgetDto } from './dto/create-budget.dto';
 import { UpdateBudgetDto } from './dto/update-budget.dto';
+import { createPaginatedResponse } from '../common/utils/pagination.util';
 
 @Injectable()
 export class BudgetsService {
@@ -20,28 +21,40 @@ export class BudgetsService {
     });
   }
 
-  async findAll(userId: string, period?: string) {
+  async findAll(
+    userId: string,
+    period?: string,
+    page: number = 1,
+    limit: number = 10,
+  ) {
     const where: any = { userId, isActive: true };
 
     if (period) {
       where.period = period;
     }
 
-    return this.prisma.budget.findMany({
-      where,
-      include: {
-        category: {
-          select: {
-            id: true,
-            name: true,
-            type: true,
-            icon: true,
-            color: true,
+    const [docs, totalDocs] = await Promise.all([
+      this.prisma.budget.findMany({
+        where,
+        include: {
+          category: {
+            select: {
+              id: true,
+              name: true,
+              type: true,
+              icon: true,
+              color: true,
+            },
           },
         },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.budget.count({ where }),
+    ]);
+
+    return createPaginatedResponse(docs, totalDocs, page, limit);
   }
 
   async findOne(id: string, userId: string) {
@@ -125,7 +138,9 @@ export class BudgetsService {
     const budgets = await this.findAll(userId, period);
 
     // Update progress for all budgets
-    await Promise.all(budgets.map((budget) => this.updateProgress(budget.id)));
+    await Promise.all(
+      budgets.docs.map((budget) => this.updateProgress(budget.id)),
+    );
 
     // Fetch updated budgets
     return this.findAll(userId, period);

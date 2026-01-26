@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCategoryDto, CategoryType } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
+import { createPaginatedResponse } from '../common/utils/pagination.util';
 
 @Injectable()
 export class CategoriesService implements OnModuleInit {
@@ -184,22 +185,29 @@ export class CategoriesService implements OnModuleInit {
     });
   }
 
-  async findAll(type?: string) {
+  async findAll(type?: string, page: number = 1, limit: number = 10) {
     const where: any = { isActive: true };
 
     if (type) {
       where.type = type;
     }
 
-    return this.prisma.category.findMany({
-      where,
-      include: {
-        _count: {
-          select: { transactions: true },
+    const [docs, totalDocs] = await Promise.all([
+      this.prisma.category.findMany({
+        where,
+        include: {
+          _count: {
+            select: { transactions: true },
+          },
         },
-      },
-      orderBy: [{ isSystem: 'desc' }, { name: 'asc' }],
-    });
+        orderBy: [{ isSystem: 'desc' }, { name: 'asc' }],
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.category.count({ where }),
+    ]);
+
+    return createPaginatedResponse(docs, totalDocs, page, limit);
   }
 
   async findOne(id: string) {

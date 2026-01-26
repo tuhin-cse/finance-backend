@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query, ParseIntPipe, DefaultValuePipe } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { ProductsService } from './products.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -22,9 +22,15 @@ export class ProductsController {
   @Get()
   @ApiOperation({ summary: 'Get all products for organization' })
   @ApiQuery({ name: 'organizationId', required: true, description: 'Organization ID' })
-  @ApiResponse({ status: 200, description: 'List of products' })
-  findAll(@Query('organizationId') organizationId: string) {
-    return this.productsService.findAll(organizationId);
+  @ApiQuery({ name: 'page', required: false, description: 'Page number', type: Number })
+  @ApiQuery({ name: 'limit', required: false, description: 'Items per page', type: Number })
+  @ApiResponse({ status: 200, description: 'Paginated list of products' })
+  findAll(
+    @Query('organizationId') organizationId: string,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number = 1,
+    @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number = 10,
+  ) {
+    return this.productsService.findAll(organizationId, page, limit);
   }
 
   @Get(':id')

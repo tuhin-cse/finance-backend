@@ -1,7 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
+import { createPaginatedResponse } from '../common/utils/pagination.util';
 
 @Injectable()
 export class OrganizationsService {
@@ -11,50 +12,92 @@ export class OrganizationsService {
     return this.prisma.organization.create({
       data: {
         ...createOrganizationDto,
-        userIds: [userId],
-      } as any,
-    });
-  }
-
-  async findAll(userId: string) {
-    return this.prisma.organization.findMany({
-      where: {
-        userIds: {
-          has: userId,
+        userOrganizations: {
+          create: {
+            userId,
+            role: 'OWNER',
+          },
         },
-        isActive: true,
       },
       include: {
-        users: {
-          select: {
-            id: true,
-            email: true,
-            firstName: true,
-            lastName: true,
-            role: true,
+        userOrganizations: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                firstName: true,
+                lastName: true,
+                role: true,
+              },
+            },
           },
         },
       },
     });
   }
 
+  async findAll(userId: string, page: number = 1, limit: number = 10) {
+    const where = {
+      userOrganizations: {
+        some: {
+          userId,
+        },
+      },
+      isActive: true,
+    };
+
+    const [docs, totalDocs] = await Promise.all([
+      this.prisma.organization.findMany({
+        where,
+        include: {
+          userOrganizations: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  email: true,
+                  firstName: true,
+                  lastName: true,
+                  role: true,
+                },
+              },
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.organization.count({ where }),
+    ]);
+
+    return createPaginatedResponse(docs, totalDocs, page, limit);
+  }
+
   async findOne(id: string, userId: string) {
     const organization = await this.prisma.organization.findFirst({
       where: {
         id,
-        userIds: {
-          has: userId,
+        userOrganizations: {
+          some: {
+            userId,
+          },
         },
         isActive: true,
       },
       include: {
-        users: {
-          select: {
-            id: true,
-            email: true,
-            firstName: true,
-            lastName: true,
-            role: true,
+        userOrganizations: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                firstName: true,
+                lastName: true,
+                role: true,
+              },
+            },
           },
         },
         teams: true,
@@ -78,9 +121,7 @@ export class OrganizationsService {
 
     return this.prisma.organization.update({
       where: { id },
-      data: {
-        ...updateOrganizationDto,
-      } as any,
+      data: updateOrganizationDto,
     });
   }
 
@@ -94,30 +135,47 @@ export class OrganizationsService {
     });
   }
 
-  async addUser(organizationId: string, userId: string) {
-    return this.prisma.organization.update({
-      where: { id: organizationId },
-      data: {
-        userIds: {
-          push: userId,
+  async addUser(organizationId: string, userId: string, role?: string) {
+    // Check if user is already a member
+    const existing = await this.prisma.userOrganization.findUnique({
+      where: {
+        userId_organizationId: {
+          userId,
+          organizationId,
         },
+      },
+    });
+
+    if (existing) {
+      throw new BadRequestException('User is already a member of this organization');
+    }
+
+    return this.prisma.userOrganization.create({
+      data: {
+        userId,
+        organizationId,
+        role: role || 'MEMBER',
       },
     });
   }
 
   async removeUser(organizationId: string, userId: string) {
-    const organization = await this.prisma.organization.findUnique({
-      where: { id: organizationId },
+    const userOrg = await this.prisma.userOrganization.findUnique({
+      where: {
+        userId_organizationId: {
+          userId,
+          organizationId,
+        },
+      },
     });
 
-    if (!organization) {
-      throw new NotFoundException('Organization not found');
+    if (!userOrg) {
+      throw new NotFoundException('User is not a member of this organization');
     }
 
-    return this.prisma.organization.update({
-      where: { id: organizationId },
-      data: {
-        userIds: organization.userIds.filter((id) => id !== userId),
+    return this.prisma.userOrganization.delete({
+      where: {
+        id: userOrg.id,
       },
     });
   }

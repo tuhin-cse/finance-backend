@@ -21,41 +21,161 @@
   <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
   [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
 
-## Description
+# BizFinance Pro - Backend API
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+A comprehensive finance management backend built with NestJS, Prisma, and PostgreSQL.
 
-## Project setup
+## Features
 
+- 🔐 **Authentication & Security**: JWT-based auth with 2FA, session management
+- 💰 **Personal Finance**: Accounts, transactions, budgets, goals tracking
+- 📊 **Business Operations**: CRM, invoicing, inventory management
+- 📈 **Project Management**: Projects, tasks, time tracking
+- 🏢 **Multi-tenant**: Organization and team management
+- 🔍 **Advanced Search**: Filtering, pagination, and reporting
+- 📄 **API Documentation**: Auto-generated Swagger/OpenAPI docs
+
+## Tech Stack
+
+- **Framework**: NestJS 11
+- **Database**: PostgreSQL with Prisma ORM
+- **Authentication**: JWT, Passport
+- **Validation**: class-validator, class-transformer
+- **API Docs**: Swagger/OpenAPI
+
+## Prerequisites
+
+- Node.js 18+ and npm/yarn
+- PostgreSQL 14+
+- Git
+
+## Project Setup
+
+### 1. Clone Repository
 ```bash
-$ yarn install
+git clone <repository-url>
+cd finance-backend
 ```
 
-## Compile and run the project
-
+### 2. Install Dependencies
 ```bash
-# development
-$ yarn run start
-
-# watch mode
-$ yarn run start:dev
-
-# production mode
-$ yarn run start:prod
+npm install
+# or
+yarn install
 ```
 
-## Run tests
+### 3. Environment Configuration
+
+Copy `.env` file and update with your values:
+```bash
+cp .env .env.local
+```
+
+Required environment variables:
+```env
+DATABASE_URL="postgresql://user:password@localhost:5432/finance?schema=public"
+JWT_SECRET="your-secure-secret-key"
+JWT_EXPIRATION="15m"
+JWT_REFRESH_SECRET="your-refresh-secret"
+JWT_REFRESH_EXPIRATION="7d"
+PORT=3000
+NODE_ENV=development
+```
+
+### 4. Database Setup
+
+Generate Prisma Client:
+```bash
+npx prisma generate
+```
+
+Run migrations:
+```bash
+npx prisma migrate dev
+```
+
+### 5. Run the Application
+
+Development mode (with hot-reload):
+```bash
+npm run start:dev
+```
+
+Production mode:
+```bash
+npm run build
+npm run start:prod
+```
+
+The API will be available at `http://localhost:3000`
+
+## Database Management
+
+### View Database
+```bash
+npx prisma studio
+```
+
+### Create Migration
+```bash
+npx prisma migrate dev --name <migration_name>
+```
+
+### Reset Database
+```bash
+npx prisma migrate reset
+```
+
+### Deploy Migrations (Production)
+```bash
+npx prisma migrate deploy
+```
+
+## API Documentation
+
+Once the application is running, visit:
+- Swagger UI: `http://localhost:3000/api`
+- OpenAPI JSON: `http://localhost:3000/api-json`
+
+## Project Structure
+
+```
+src/
+├── accounts/         # Account management
+├── auth/            # Authentication & authorization
+├── budgets/         # Budget tracking
+├── categories/      # Transaction categories
+├── common/          # Shared utilities & filters
+├── config/          # Configuration modules
+├── contacts/        # CRM contacts
+├── expenses/        # Expense tracking
+├── goals/           # Financial goals
+├── invoices/        # Invoice management
+├── organizations/   # Multi-tenant organizations
+├── prisma/          # Prisma service
+├── products/        # Product catalog
+├── projects/        # Project management
+├── transactions/    # Financial transactions
+├── app.module.ts    # Root module
+└── main.ts          # Application entry point
+```
+
+## Testing
 
 ```bash
-# unit tests
-$ yarn run test
+# Unit tests
+npm run test
 
-# e2e tests
-$ yarn run test:e2e
+# E2E tests
+npm run test:e2e
 
-# test coverage
-$ yarn run test:cov
+# Test coverage
+npm run test:cov
 ```
+
+## Migration from MongoDB
+
+This project was migrated from MongoDB to PostgreSQL. See [MIGRATION_GUIDE.md](./MIGRATION_GUIDE.md) for details.
 
 ## Deployment
 

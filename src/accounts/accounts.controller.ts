@@ -8,6 +8,8 @@ import {
   Delete,
   UseGuards,
   Query,
+  ParseIntPipe,
+  DefaultValuePipe,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { AccountsService } from './accounts.service';
@@ -36,12 +38,16 @@ export class AccountsController {
   @Get()
   @ApiOperation({ summary: 'Get all accounts for the current user' })
   @ApiQuery({ name: 'organizationId', required: false, description: 'Filter by organization' })
-  @ApiResponse({ status: 200, description: 'List of accounts' })
+  @ApiQuery({ name: 'page', required: false, description: 'Page number', type: Number })
+  @ApiQuery({ name: 'limit', required: false, description: 'Items per page', type: Number })
+  @ApiResponse({ status: 200, description: 'Paginated list of accounts' })
   findAll(
     @GetUser('id') userId: string,
     @Query('organizationId') organizationId?: string,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number = 1,
+    @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number = 10,
   ) {
-    return this.accountsService.findAll(userId, organizationId);
+    return this.accountsService.findAll(userId, organizationId, page, limit);
   }
 
   @Get(':id')

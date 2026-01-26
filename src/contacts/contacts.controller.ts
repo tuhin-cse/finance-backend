@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query, ParseIntPipe, DefaultValuePipe } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { ContactsService } from './contacts.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -22,9 +22,16 @@ export class ContactsController {
   @Get()
   @ApiOperation({ summary: 'Get all contacts' })
   @ApiQuery({ name: 'type', required: false, description: 'Filter by type (CUSTOMER, VENDOR, EMPLOYEE, LEAD)' })
-  @ApiResponse({ status: 200, description: 'List of contacts' })
-  findAll(@GetUser('id') userId: string, @Query('type') type?: string) {
-    return this.contactsService.findAll(userId, type);
+  @ApiQuery({ name: 'page', required: false, description: 'Page number', type: Number })
+  @ApiQuery({ name: 'limit', required: false, description: 'Items per page', type: Number })
+  @ApiResponse({ status: 200, description: 'Paginated list of contacts' })
+  findAll(
+    @GetUser('id') userId: string,
+    @Query('type') type?: string,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number = 1,
+    @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number = 10,
+  ) {
+    return this.contactsService.findAll(userId, type, page, limit);
   }
 
   @Get(':id')

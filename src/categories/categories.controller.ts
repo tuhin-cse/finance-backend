@@ -8,6 +8,8 @@ import {
   Delete,
   UseGuards,
   Query,
+  ParseIntPipe,
+  DefaultValuePipe,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { CategoriesService } from './categories.service';
@@ -32,9 +34,15 @@ export class CategoriesController {
   @Get()
   @ApiOperation({ summary: 'Get all categories' })
   @ApiQuery({ name: 'type', required: false, description: 'Filter by type (INCOME, EXPENSE, TRANSFER)' })
-  @ApiResponse({ status: 200, description: 'List of categories including system defaults' })
-  findAll(@Query('type') type?: string) {
-    return this.categoriesService.findAll(type);
+  @ApiQuery({ name: 'page', required: false, description: 'Page number', type: Number })
+  @ApiQuery({ name: 'limit', required: false, description: 'Items per page', type: Number })
+  @ApiResponse({ status: 200, description: 'Paginated list of categories including system defaults' })
+  findAll(
+    @Query('type') type?: string,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number = 1,
+    @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number = 10,
+  ) {
+    return this.categoriesService.findAll(type, page, limit);
   }
 
   @Get(':id')

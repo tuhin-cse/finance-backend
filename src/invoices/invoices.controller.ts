@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query, ParseIntPipe, DefaultValuePipe } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { InvoicesService } from './invoices.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -22,9 +22,16 @@ export class InvoicesController {
   @Get()
   @ApiOperation({ summary: 'Get all invoices' })
   @ApiQuery({ name: 'status', required: false, description: 'Filter by status (DRAFT, SENT, PAID, etc.)' })
-  @ApiResponse({ status: 200, description: 'List of invoices' })
-  findAll(@GetUser('id') userId: string, @Query('status') status?: string) {
-    return this.invoicesService.findAll(userId, status);
+  @ApiQuery({ name: 'page', required: false, description: 'Page number', type: Number })
+  @ApiQuery({ name: 'limit', required: false, description: 'Items per page', type: Number })
+  @ApiResponse({ status: 200, description: 'Paginated list of invoices' })
+  findAll(
+    @GetUser('id') userId: string,
+    @Query('status') status?: string,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number = 1,
+    @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number = 10,
+  ) {
+    return this.invoicesService.findAll(userId, status, page, limit);
   }
 
   @Get(':id')
