@@ -1,22 +1,27 @@
 import {
-  Controller,
-  Get,
-  Post,
   Body,
-  Patch,
-  Param,
-  Delete,
-  UseGuards,
-  Query,
-  ParseIntPipe,
+  Controller,
   DefaultValuePipe,
+  Delete,
+  Get,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { OrganizationsService } from './organizations.service';
-import { CreateOrganizationDto } from './dto/create-organization.dto';
-import { UpdateOrganizationDto } from './dto/update-organization.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { GetUser } from '../auth/decorators/get-user.decorator';
+import { CreateOrganizationDto, UpdateOrganizationDto } from './dto';
+import { JwtAuthGuard } from '../auth/guards';
+import { GetUser } from '../auth/decorators';
 
 @ApiTags('Organizations')
 @ApiBearerAuth('JWT-auth')
@@ -27,7 +32,10 @@ export class OrganizationsController {
 
   @Post()
   @ApiOperation({ summary: 'Create a new organization' })
-  @ApiResponse({ status: 201, description: 'Organization created successfully' })
+  @ApiResponse({
+    status: 201,
+    description: 'Organization created successfully',
+  })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   create(
     @GetUser('id') userId: string,
@@ -38,8 +46,18 @@ export class OrganizationsController {
 
   @Get()
   @ApiOperation({ summary: 'Get all organizations for the current user' })
-  @ApiQuery({ name: 'page', required: false, description: 'Page number', type: Number })
-  @ApiQuery({ name: 'limit', required: false, description: 'Items per page', type: Number })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    description: 'Page number',
+    type: Number,
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Items per page',
+    type: Number,
+  })
   @ApiResponse({ status: 200, description: 'Paginated list of organizations' })
   findAll(
     @GetUser('id') userId: string,
@@ -59,7 +77,10 @@ export class OrganizationsController {
 
   @Patch(':id')
   @ApiOperation({ summary: 'Update organization' })
-  @ApiResponse({ status: 200, description: 'Organization updated successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'Organization updated successfully',
+  })
   @ApiResponse({ status: 404, description: 'Organization not found' })
   update(
     @Param('id') id: string,
@@ -71,7 +92,10 @@ export class OrganizationsController {
 
   @Delete(':id')
   @ApiOperation({ summary: 'Delete organization (soft delete)' })
-  @ApiResponse({ status: 200, description: 'Organization deleted successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'Organization deleted successfully',
+  })
   @ApiResponse({ status: 404, description: 'Organization not found' })
   remove(@Param('id') id: string, @GetUser('id') userId: string) {
     return this.organizationsService.remove(id, userId);

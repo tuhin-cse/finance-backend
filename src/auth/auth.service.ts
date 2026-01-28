@@ -59,7 +59,7 @@ export class AuthService {
     const hashedPassword = await this.hashPassword(password);
 
     // Generate email verification token
-    const verificationToken = randomBytes(32).toString('hex');
+    // const verificationToken = randomBytes(32).toString('hex');
 
     // Create the new user
     const user = await this.prisma.user.create({
@@ -69,7 +69,7 @@ export class AuthService {
         firstName,
         lastName,
         emailVerified: false,
-      } as any,
+      },
     });
 
     // TODO: Send verification email with verificationToken
@@ -125,7 +125,7 @@ export class AuthService {
     // Update last login
     await this.prisma.user.update({
       where: { id: user.id },
-      data: { lastLoginAt: new Date() } as any,
+      data: { lastLoginAt: new Date() },
     });
 
     // Create session if session info provided
@@ -177,7 +177,7 @@ export class AuthService {
     // Update last login
     await this.prisma.user.update({
       where: { id: user.id },
-      data: { lastLoginAt: new Date() } as any,
+      data: { lastLoginAt: new Date() },
     });
 
     // Trust device if requested
@@ -235,7 +235,7 @@ export class AuthService {
     // Save secret (but don't enable yet)
     await this.prisma.user.update({
       where: { id: userId },
-      data: { twoFactorSecret: secret.base32 } as any,
+      data: { twoFactorSecret: secret.base32 },
     });
 
     // Generate QR code
@@ -272,7 +272,7 @@ export class AuthService {
     // Enable 2FA
     await this.prisma.user.update({
       where: { id: userId },
-      data: { twoFactorEnabled: true } as any,
+      data: { twoFactorEnabled: true },
     });
 
     return {
