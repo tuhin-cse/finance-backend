@@ -329,11 +329,12 @@ model Budget {
   id         String   @id @default(uuid())
   userId     String
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  categoryId String
-  category   Category @relation(fields: [categoryId], references: [id])
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id])
 
   name      String
   type      BudgetType // MONTHLY, WEEKLY, ANNUAL, CUSTOM
+  budgetingMethod BudgetingMethod @default(TRADITIONAL) // TRADITIONAL, ZERO_BASED, ENVELOPE
   amount    Float
   period    String // YYYY-MM for monthly
   startDate DateTime
@@ -341,11 +342,36 @@ model Budget {
 
   // Budget Settings
   rolloverUnused Boolean @default(false)
+  rolloverAmount Float   @default(0) // Carried over from previous period
   alertThreshold Float   @default(0.8) // Alert at 80%
+  
+  // Envelope & Zero-based specific
+  envelopeAllocated Float   @default(0) // For envelope budgeting
+  envelopeSpent     Float   @default(0)
+  
+  // Multi-category support
+  categories String[] // Array of category IDs for multi-category budgets
+  
+  // Template
+  isTemplate Boolean @default(false)
+  templateId String? // Reference to template this was created from
 
   // Tracking
   spent     Float @default(0)
   remaining Float @default(0)
+  
+  // Performance metrics
+  variance           Float @default(0) // Difference from planned
+  successRate        Float @default(0) // Historical success percentage
+  averageUtilization Float @default(0) // Average % used
+
+  // Collaboration
+  isShared Boolean @default(false)
+  
+  // Relations
+  collaborators BudgetCollaborator[]
+  scenarios     BudgetScenario[]
+  recommendations AIRecommendation[]
 
   // Metadata
   isActive  Boolean  @default(true)
@@ -355,13 +381,90 @@ model Budget {
   @@index([userId])
   @@index([categoryId])
   @@index([period])
+  @@index([isTemplate])
   @@map("budgets")
+}
+
+model BudgetTemplate {
+  id          String     @id @default(uuid())
+  userId      String?    // Null for system templates
+  name        String
+  description String?
+  budgetingMethod BudgetingMethod @default(TRADITIONAL)
+  
+  // Template definition
+  categories  Json // Array of {categoryId, amount, percentage}
+  frequency   BudgetType
+  isSystem    Boolean @default(false) // System vs user-created
+  isPublic    Boolean @default(false) // Can be shared with others
+  
+  // Usage tracking
+  timesUsed   Int     @default(0)
+  
+  // Metadata
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([isSystem])
+  @@map("budget_templates")
+}
+
+model BudgetCollaborator {
+  id       String @id @default(uuid())
+  budgetId String
+  budget   Budget @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  userId   String
+  
+  role       CollaboratorRole @default(VIEWER) // OWNER, EDITOR, VIEWER
+  canEdit    Boolean          @default(false)
+  canDelete  Boolean          @default(false)
+  canInvite  Boolean          @default(false)
+  
+  invitedBy  String?
+  acceptedAt DateTime?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([budgetId, userId])
+  @@index([budgetId])
+  @@index([userId])
+  @@map("budget_collaborators")
+}
+
+model BudgetScenario {
+  id       String @id @default(uuid())
+  budgetId String
+  budget   Budget @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  userId   String
+  
+  name        String
+  description String?
+  scenarioType ScenarioType @default(WHAT_IF) // WHAT_IF, BEST_CASE, WORST_CASE, LIKELY
+  
+  // Scenario parameters
+  assumptions  Json // {income: 5000, expenses: {category: amount}}
+  projectedSpent Float
+  projectedSavings Float
+  
+  // Results
+  analysis     Json? // AI-generated analysis
+  recommendations Json? // AI suggestions
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([budgetId])
+  @@index([userId])
+  @@map("budget_scenarios")
 }
 
 model Goal {
   id     String @id @default(uuid())
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId String? // Linked account for contributions
 
   name          String
   description   String?
@@ -369,15 +472,41 @@ model Goal {
   targetAmount  Float
   currentAmount Float     @default(0)
   targetDate    DateTime?
+  
+  // Priority and strategy
+  priority      Int @default(0) // Higher = more important
+  debtStrategy  DebtStrategy? // SNOWBALL, AVALANCHE (for debt payoff goals)
+  interestRate  Float? // For debt goals
 
   // Settings
   autoContribute        Boolean @default(false)
   contributionAmount    Float?
-  contributionFrequency String? // WEEKLY, MONTHLY, etc.
+  contributionFrequency ContributionFrequency?
 
   // Progress
   progress Float      @default(0) // Percentage
   status   GoalStatus @default(IN_PROGRESS)
+  
+  // Gamification
+  xpPoints       Int @default(0)
+  currentStreak  Int @default(0)
+  longestStreak  Int @default(0)
+  lastContributionDate DateTime?
+  badges         String[] // Array of badge IDs earned
+  level          Int @default(1)
+  
+  // AI predictions
+  predictedCompletionDate DateTime?
+  achievementProbability  Float? // 0-1 probability
+  
+  // Collaboration
+  isShared Boolean @default(false)
+
+  // Relations
+  milestones      GoalMilestone[]
+  contributions   GoalContribution[]
+  collaborators   GoalCollaborator[]
+  recommendations AIRecommendation[]
 
   // Metadata
   isActive    Boolean   @default(true)
@@ -387,7 +516,156 @@ model Goal {
 
   @@index([userId])
   @@index([type])
+  @@index([accountId])
+  @@index([status])
   @@map("goals")
+}
+
+model GoalMilestone {
+  id       String @id @default(uuid())
+  goalId   String
+  goal     Goal   @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  
+  name        String
+  description String?
+  targetAmount Float
+  targetDate   DateTime?
+  order        Int // Display order
+  
+  // Status
+  isCompleted  Boolean   @default(false)
+  completedAt  DateTime?
+  
+  // Rewards
+  xpReward     Int @default(0)
+  badgeReward  String? // Badge ID to unlock
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([goalId])
+  @@index([isCompleted])
+  @@map("goal_milestones")
+}
+
+model GoalContribution {
+  id            String   @id @default(uuid())
+  goalId        String
+  goal          Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  userId        String
+  transactionId String?  // Optional link to transaction
+  
+  amount       Float
+  date         DateTime @default(now())
+  source       ContributionSource @default(MANUAL) // MANUAL, AUTOMATIC, ROUND_UP, SAVINGS_RULE
+  note         String?
+  
+  // Gamification
+  xpEarned     Int @default(0)
+  streakBonus  Boolean @default(false)
+  
+  createdAt DateTime @default(now())
+
+  @@index([goalId])
+  @@index([userId])
+  @@index([date])
+  @@map("goal_contributions")
+}
+
+model GoalCollaborator {
+  id     String @id @default(uuid())
+  goalId String
+  goal   Goal   @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  userId String
+  
+  role           CollaboratorRole @default(VIEWER)
+  canContribute  Boolean          @default(false)
+  canEdit        Boolean          @default(false)
+  canDelete      Boolean          @default(false)
+  
+  invitedBy  String?
+  acceptedAt DateTime?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([goalId, userId])
+  @@index([goalId])
+  @@index([userId])
+  @@map("goal_collaborators")
+}
+
+model SavingsRule {
+  id     String @id @default(uuid())
+  userId String
+  goalId String? // Optional link to specific goal
+  
+  name        String
+  description String?
+  ruleType    SavingsRuleType // ROUND_UP, PERCENTAGE, FIXED_AMOUNT, CONDITIONAL
+  isActive    Boolean         @default(true)
+  
+  // Rule configuration
+  config      Json // {roundUpTo: 1, percentage: 0.1, amount: 50, conditions: {...}}
+  
+  // Execution
+  frequency   ExecutionFrequency @default(PER_TRANSACTION) // PER_TRANSACTION, DAILY, WEEKLY, MONTHLY
+  
+  // Tracking
+  totalSaved  Float @default(0)
+  timesTriggered Int @default(0)
+  lastExecuted DateTime?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([goalId])
+  @@index([isActive])
+  @@map("savings_rules")
+}
+
+model AIRecommendation {
+  id        String @id @default(uuid())
+  userId    String
+  budgetId  String?
+  goalId    String?
+  budget    Budget? @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  goal      Goal?   @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  
+  type        RecommendationType // BUDGET_OPTIMIZATION, COST_REDUCTION, SAVINGS_OPPORTUNITY, GOAL_STRATEGY
+  title       String
+  description String
+  
+  // Recommendation data
+  currentValue   Float?
+  recommendedValue Float?
+  potentialSavings Float?
+  confidence     Float @default(0) // 0-1 confidence score
+  
+  // AI metadata
+  model       String // e.g., "gemini-1.5-pro"
+  reasoning   String? // AI explanation
+  actionItems Json? // Specific action steps
+  
+  // User interaction
+  isViewed    Boolean @default(false)
+  isAccepted  Boolean @default(false)
+  isDismissed Boolean @default(false)
+  feedback    String?
+  
+  // Expiration
+  expiresAt   DateTime?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([budgetId])
+  @@index([goalId])
+  @@index([type])
+  @@index([isViewed])
+  @@map("ai_recommendations")
 }
 
 model Investment {
@@ -1309,4 +1587,73 @@ enum NotificationType {
   ALERT
   REMINDER
   SOCIAL
+}
+
+enum BudgetingMethod {
+  TRADITIONAL
+  ZERO_BASED
+  ENVELOPE
+}
+
+enum CollaboratorRole {
+  OWNER
+  EDITOR
+  VIEWER
+}
+
+enum ScenarioType {
+  WHAT_IF
+  BEST_CASE
+  WORST_CASE
+  LIKELY
+}
+
+enum DebtStrategy {
+  SNOWBALL      // Pay smallest balance first
+  AVALANCHE     // Pay highest interest first
+  CUSTOM        // User-defined order
+}
+
+enum ContributionFrequency {
+  DAILY
+  WEEKLY
+  BI_WEEKLY
+  MONTHLY
+  QUARTERLY
+  ANNUALLY
+  ONE_TIME
+}
+
+enum ContributionSource {
+  MANUAL
+  AUTOMATIC
+  ROUND_UP
+  SAVINGS_RULE
+  LINKED_TRANSACTION
+}
+
+enum SavingsRuleType {
+  ROUND_UP          // Round up transactions to nearest dollar
+  PERCENTAGE        // Save percentage of income
+  FIXED_AMOUNT      // Save fixed amount periodically
+  CONDITIONAL       // Save based on conditions
+  SPARE_CHANGE      // Save change from transactions
+}
+
+enum ExecutionFrequency {
+  PER_TRANSACTION
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+enum RecommendationType {
+  BUDGET_OPTIMIZATION
+  COST_REDUCTION
+  SAVINGS_OPPORTUNITY
+  GOAL_STRATEGY
+  SPENDING_ALERT
+  FORECASTING
+  DEBT_PAYOFF
+  INVESTMENT_ADVICE
 }

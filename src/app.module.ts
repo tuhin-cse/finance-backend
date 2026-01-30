@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
@@ -15,10 +16,13 @@ import { InvoicesModule } from './invoices/invoices.module';
 import { ProductsModule } from './products/products.module';
 import { ProjectsModule } from './projects/projects.module';
 import { ExpensesModule } from './expenses/expenses.module';
+import { CommonModule } from './common/common.module';
 
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
     ConfigModule,
+    CommonModule,
     AuthModule,
     PrismaModule,
     OrganizationsModule,

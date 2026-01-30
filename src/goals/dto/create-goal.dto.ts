@@ -6,6 +6,7 @@ import {
   IsDate,
   IsBoolean,
   Min,
+  Max,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -20,10 +21,25 @@ export enum GoalType {
 }
 
 export enum GoalStatus {
+  NOT_STARTED = 'NOT_STARTED',
   IN_PROGRESS = 'IN_PROGRESS',
   COMPLETED = 'COMPLETED',
   PAUSED = 'PAUSED',
   CANCELLED = 'CANCELLED',
+}
+
+export enum ContributionFrequency {
+  DAILY = 'DAILY',
+  WEEKLY = 'WEEKLY',
+  BI_WEEKLY = 'BI_WEEKLY',
+  MONTHLY = 'MONTHLY',
+}
+
+export enum DebtStrategy {
+  SNOWBALL = 'SNOWBALL',
+  AVALANCHE = 'AVALANCHE',
+  CUSTOM = 'CUSTOM',
+  HYBRID = 'HYBRID',
 }
 
 export class CreateGoalDto {
@@ -45,31 +61,99 @@ export class CreateGoalDto {
   @Min(0)
   targetAmount: number;
 
-  @ApiPropertyOptional({ description: 'Current amount saved', minimum: 0 })
+  @ApiPropertyOptional({
+    description: 'Current amount saved',
+    minimum: 0,
+    default: 0,
+  })
   @IsNumber()
   @Min(0)
   @IsOptional()
   currentAmount?: number;
 
-  @ApiPropertyOptional({ description: 'Target date to achieve goal' })
+  @ApiProperty({ description: 'Target date to achieve goal' })
   @Type(() => Date)
   @IsDate()
-  @IsOptional()
-  targetDate?: Date;
+  targetDate: Date;
 
-  @ApiPropertyOptional({ description: 'Enable automatic contributions' })
+  @ApiPropertyOptional({ description: 'Category ID associated with goal' })
+  @IsString()
+  @IsOptional()
+  categoryId?: string;
+
+  @ApiPropertyOptional({ description: 'Account ID for automatic contributions' })
+  @IsString()
+  @IsOptional()
+  accountId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Goal priority (higher = more important)',
+    minimum: 0,
+    default: 0,
+  })
+  @IsNumber()
+  @IsOptional()
+  @Min(0)
+  priority?: number;
+
+  @ApiPropertyOptional({
+    description: 'Enable automatic contributions',
+    default: false,
+  })
   @IsBoolean()
   @IsOptional()
   autoContribute?: boolean;
 
-  @ApiPropertyOptional({ description: 'Amount to contribute automatically', minimum: 0 })
+  @ApiPropertyOptional({
+    description: 'Amount to contribute automatically',
+    minimum: 0,
+  })
   @IsNumber()
   @Min(0)
   @IsOptional()
   contributionAmount?: number;
 
-  @ApiPropertyOptional({ description: 'Contribution frequency (WEEKLY, MONTHLY, etc.)' })
-  @IsString()
+  @ApiPropertyOptional({
+    enum: ContributionFrequency,
+    description: 'Contribution frequency',
+  })
+  @IsEnum(ContributionFrequency)
   @IsOptional()
-  contributionFrequency?: string;
+  contributionFrequency?: ContributionFrequency;
+
+  @ApiPropertyOptional({
+    description: 'Interest rate for debt goals (percentage)',
+    minimum: 0,
+    maximum: 100,
+  })
+  @IsNumber()
+  @IsOptional()
+  @Min(0)
+  @Max(100)
+  interestRate?: number;
+
+  @ApiPropertyOptional({
+    enum: DebtStrategy,
+    description: 'Debt payoff strategy',
+  })
+  @IsEnum(DebtStrategy)
+  @IsOptional()
+  debtStrategy?: DebtStrategy;
+
+  @ApiPropertyOptional({
+    description: 'Minimum monthly payment for debt',
+    minimum: 0,
+  })
+  @IsNumber()
+  @IsOptional()
+  @Min(0)
+  minPayment?: number;
+
+  @ApiPropertyOptional({
+    description: 'Mark goal as shared',
+    default: false,
+  })
+  @IsBoolean()
+  @IsOptional()
+  isShared?: boolean;
 }

@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { UpdateTransactionDto } from './dto/update-transaction.dto';
@@ -35,9 +39,10 @@ export class TransactionsService {
     });
 
     // Update account balance
-    const newBalance = account.currentBalance + 
-      (createTransactionDto.type === 'INCOME' 
-        ? createTransactionDto.amount 
+    const newBalance =
+      account.currentBalance +
+      (createTransactionDto.type === 'INCOME'
+        ? createTransactionDto.amount
         : -createTransactionDto.amount);
 
     await this.prisma.account.update({
@@ -173,9 +178,10 @@ export class TransactionsService {
     });
 
     if (account) {
-      const newBalance = account.currentBalance - 
-        (transaction.type === 'INCOME' 
-          ? transaction.amount 
+      const newBalance =
+        account.currentBalance -
+        (transaction.type === 'INCOME'
+          ? transaction.amount
           : -transaction.amount);
 
       await this.prisma.account.update({
@@ -194,7 +200,7 @@ export class TransactionsService {
 
     return this.prisma.transaction.update({
       where: { id },
-      data: { 
+      data: {
         categoryId,
         isAutoCatego: false,
       },
@@ -209,7 +215,7 @@ export class TransactionsService {
 
     return this.prisma.transaction.update({
       where: { id },
-      data: { 
+      data: {
         isReconciled: true,
         reconciledAt: new Date(),
       },
@@ -217,7 +223,10 @@ export class TransactionsService {
   }
 
   async getStatistics(userId: string, startDate?: Date, endDate?: Date) {
-    const where: any = { userId };
+    const where: {
+      userId: string;
+      date?: { gte?: Date; lte?: Date };
+    } = { userId };
 
     if (startDate || endDate) {
       where.date = {};
@@ -243,7 +252,7 @@ export class TransactionsService {
 
     return {
       totalIncome: income._sum.amount || 0,
-      totalExpenses: expenses._sum.amount || 0,
+      totalExpense: expenses._sum.amount || 0,
       netIncome: (income._sum.amount || 0) - (expenses._sum.amount || 0),
       totalTransactions: total,
     };

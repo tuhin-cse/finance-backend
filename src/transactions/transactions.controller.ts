@@ -1,15 +1,21 @@
 import {
-  Controller,
-  Get,
-  Post,
   Body,
-  Patch,
-  Param,
+  Controller,
   Delete,
-  UseGuards,
+  Get,
+  Param,
+  Patch,
+  Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { TransactionsService } from './transactions.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { UpdateTransactionDto } from './dto/update-transaction.dto';
@@ -26,7 +32,10 @@ export class TransactionsController {
 
   @Post()
   @ApiOperation({ summary: 'Create a new transaction' })
-  @ApiResponse({ status: 201, description: 'Transaction created and account balance updated' })
+  @ApiResponse({
+    status: 201,
+    description: 'Transaction created and account balance updated',
+  })
   create(
     @GetUser('id') userId: string,
     @Body() createTransactionDto: CreateTransactionDto,
@@ -45,9 +54,19 @@ export class TransactionsController {
   }
 
   @Get('statistics')
-  @ApiOperation({ summary: 'Get transaction statistics (income, expenses, net)' })
-  @ApiQuery({ name: 'startDate', required: false, description: 'Start date filter' })
-  @ApiQuery({ name: 'endDate', required: false, description: 'End date filter' })
+  @ApiOperation({
+    summary: 'Get transaction statistics (income, expenses, net)',
+  })
+  @ApiQuery({
+    name: 'startDate',
+    required: false,
+    description: 'Start date filter',
+  })
+  @ApiQuery({
+    name: 'endDate',
+    required: false,
+    description: 'End date filter',
+  })
   @ApiResponse({ status: 200, description: 'Transaction statistics' })
   getStatistics(
     @GetUser('id') userId: string,
@@ -89,7 +108,10 @@ export class TransactionsController {
 
   @Patch(':id/categorize')
   @ApiOperation({ summary: 'Assign category to transaction' })
-  @ApiResponse({ status: 200, description: 'Transaction categorized successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'Transaction categorized successfully',
+  })
   categorize(
     @Param('id') id: string,
     @GetUser('id') userId: string,
@@ -100,7 +122,10 @@ export class TransactionsController {
 
   @Post(':id/reconcile')
   @ApiOperation({ summary: 'Mark transaction as reconciled' })
-  @ApiResponse({ status: 200, description: 'Transaction reconciled successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'Transaction reconciled successfully',
+  })
   reconcile(@Param('id') id: string, @GetUser('id') userId: string) {
     return this.transactionsService.reconcile(id, userId);
   }

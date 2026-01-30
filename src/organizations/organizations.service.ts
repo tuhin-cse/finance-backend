@@ -1,8 +1,11 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
-import { createPaginatedResponse } from '../common/utils/pagination.util';
 
 @Injectable()
 export class OrganizationsService {
@@ -37,7 +40,7 @@ export class OrganizationsService {
     });
   }
 
-  async findAll(userId: string, page: number = 1, limit: number = 10) {
+  async findAll(userId: string) {
     const where = {
       userOrganizations: {
         some: {
@@ -47,32 +50,25 @@ export class OrganizationsService {
       isActive: true,
     };
 
-    const [docs, totalDocs] = await Promise.all([
-      this.prisma.organization.findMany({
-        where,
-        include: {
-          userOrganizations: {
-            include: {
-              user: {
-                select: {
-                  id: true,
-                  email: true,
-                  firstName: true,
-                  lastName: true,
-                  role: true,
-                },
+    return this.prisma.organization.findMany({
+      where,
+      include: {
+        userOrganizations: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                firstName: true,
+                lastName: true,
+                role: true,
               },
             },
           },
         },
-        orderBy: { createdAt: 'desc' },
-        skip: (page - 1) * limit,
-        take: limit,
-      }),
-      this.prisma.organization.count({ where }),
-    ]);
-
-    return createPaginatedResponse(docs, totalDocs, page, limit);
+      },
+      orderBy: { createdAt: 'desc' },
+    });
   }
 
   async findOne(id: string, userId: string) {
@@ -147,7 +143,9 @@ export class OrganizationsService {
     });
 
     if (existing) {
-      throw new BadRequestException('User is already a member of this organization');
+      throw new BadRequestException(
+        'User is already a member of this organization',
+      );
     }
 
     return this.prisma.userOrganization.create({

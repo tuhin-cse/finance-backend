@@ -46,25 +46,11 @@ export class OrganizationsController {
 
   @Get()
   @ApiOperation({ summary: 'Get all organizations for the current user' })
-  @ApiQuery({
-    name: 'page',
-    required: false,
-    description: 'Page number',
-    type: Number,
-  })
-  @ApiQuery({
-    name: 'limit',
-    required: false,
-    description: 'Items per page',
-    type: Number,
-  })
-  @ApiResponse({ status: 200, description: 'Paginated list of organizations' })
+  @ApiResponse({ status: 200, description: 'List of organizations' })
   findAll(
     @GetUser('id') userId: string,
-    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number = 1,
-    @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number = 10,
   ) {
-    return this.organizationsService.findAll(userId, page, limit);
+    return this.organizationsService.findAll(userId);
   }
 
   @Get(':id')
