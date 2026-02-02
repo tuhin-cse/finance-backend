@@ -70,14 +70,26 @@ export class BudgetsController {
     description: 'Items per page',
     type: Number,
   })
+  @ApiQuery({
+    name: 'organizationId',
+    required: false,
+    description: 'Filter by organization',
+  })
   @ApiResponse({ status: 200, description: 'Paginated list of budgets' })
   findAll(
     @GetUser('id') userId: string,
     @Query('period') period?: string,
+    @Query('organizationId') organizationId?: string,
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number = 1,
     @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number = 10,
   ) {
-    return this.budgetsService.findAll(userId, period, page, limit);
+    return this.budgetsService.findAll(
+      userId,
+      period,
+      organizationId,
+      page,
+      limit,
+    );
   }
 
   @Get('current')

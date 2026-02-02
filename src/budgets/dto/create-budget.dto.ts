@@ -1,13 +1,13 @@
 import {
-  IsString,
-  IsNumber,
-  IsEnum,
-  IsDate,
-  IsBoolean,
-  IsOptional,
   IsArray,
-  Min,
+  IsBoolean,
+  IsDate,
+  IsEnum,
+  IsNumber,
+  IsOptional,
+  IsString,
   Max,
+  Min,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -63,7 +63,9 @@ export class CreateBudgetDto {
   @IsDate()
   endDate: Date;
 
-  @ApiPropertyOptional({ description: 'Category ID (optional for multi-category budgets)' })
+  @ApiPropertyOptional({
+    description: 'Category ID (optional for multi-category budgets)',
+  })
   @IsString()
   @IsOptional()
   categoryId?: string;
@@ -118,4 +120,9 @@ export class CreateBudgetDto {
   @IsOptional()
   @Min(0)
   envelopeAllocated?: number;
+
+  @ApiPropertyOptional({ description: 'Organization ID' })
+  @IsString()
+  @IsOptional()
+  organizationId?: string;
 }

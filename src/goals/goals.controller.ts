@@ -20,20 +20,20 @@ import {
 } from '@nestjs/swagger';
 import { GoalsService } from './goals.service';
 import {
-  CreateGoalDto,
-  UpdateGoalDto,
-  CreateGoalMilestoneDto,
-  AddGoalContributionDto,
   AddGoalCollaboratorDto,
-  CreateSavingsRuleDto,
-  UpdateSavingsRuleDto,
-  SetGoalPriorityDto,
-  SetDebtStrategyDto,
-  CalculateDebtPayoffDto,
+  AddGoalContributionDto,
   AutoContributeConfigDto,
+  CalculateDebtPayoffDto,
+  CreateGoalDto,
+  CreateGoalMilestoneDto,
+  CreateSavingsRuleDto,
+  SetDebtStrategyDto,
+  SetGoalPriorityDto,
+  UpdateGoalDto,
+  UpdateSavingsRuleDto,
 } from './dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { GetUser } from '../auth/decorators/get-user.decorator';
+import { JwtAuthGuard } from '../auth/guards';
+import { GetUser } from '../auth/decorators';
 
 @ApiTags('Goals')
 @ApiBearerAuth('JWT-auth')
@@ -63,13 +63,19 @@ export class GoalsController {
     description: 'Items per page',
     type: Number,
   })
+  @ApiQuery({
+    name: 'organizationId',
+    required: false,
+    description: 'Filter by organization',
+  })
   @ApiResponse({ status: 200, description: 'Paginated list of goals' })
   findAll(
     @GetUser('id') userId: string,
+    @Query('organizationId') organizationId?: string,
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number = 1,
     @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number = 10,
   ) {
-    return this.goalsService.findAll(userId, page, limit);
+    return this.goalsService.findAll(userId, organizationId, page, limit);
   }
 
   @Get(':id')
@@ -126,7 +132,10 @@ export class GoalsController {
   @Get(':goalId/milestones')
   @ApiOperation({ summary: 'Get all milestones for a goal' })
   @ApiResponse({ status: 200, description: 'List of milestones' })
-  getMilestones(@GetUser('id') userId: string, @Param('goalId') goalId: string) {
+  getMilestones(
+    @GetUser('id') userId: string,
+    @Param('goalId') goalId: string,
+  ) {
     return this.goalsService.getMilestones(userId, goalId);
   }
 
@@ -158,7 +167,10 @@ export class GoalsController {
   @Get(':goalId/contributions')
   @ApiOperation({ summary: 'Get all contributions for a goal' })
   @ApiResponse({ status: 200, description: 'List of contributions' })
-  getContributions(@GetUser('id') userId: string, @Param('goalId') goalId: string) {
+  getContributions(
+    @GetUser('id') userId: string,
+    @Param('goalId') goalId: string,
+  ) {
     return this.goalsService.getContributions(userId, goalId);
   }
 
@@ -173,7 +185,12 @@ export class GoalsController {
     @Query('startDate') startDate?: Date,
     @Query('endDate') endDate?: Date,
   ) {
-    return this.goalsService.getContributionHistory(userId, goalId, startDate, endDate);
+    return this.goalsService.getContributionHistory(
+      userId,
+      goalId,
+      startDate,
+      endDate,
+    );
   }
 
   // ============================================
@@ -194,7 +211,10 @@ export class GoalsController {
   @Get(':goalId/collaborators')
   @ApiOperation({ summary: 'Get all collaborators for a goal' })
   @ApiResponse({ status: 200, description: 'List of collaborators' })
-  getCollaborators(@GetUser('id') userId: string, @Param('goalId') goalId: string) {
+  getCollaborators(
+    @GetUser('id') userId: string,
+    @Param('goalId') goalId: string,
+  ) {
     return this.goalsService.getCollaborators(userId, goalId);
   }
 
@@ -262,7 +282,10 @@ export class GoalsController {
   @Post('priority')
   @ApiOperation({ summary: 'Set goal priority' })
   @ApiResponse({ status: 200, description: 'Priority updated' })
-  setGoalPriority(@GetUser('id') userId: string, @Body() dto: SetGoalPriorityDto) {
+  setGoalPriority(
+    @GetUser('id') userId: string,
+    @Body() dto: SetGoalPriorityDto,
+  ) {
     return this.goalsService.setGoalPriority(userId, dto);
   }
 
@@ -280,13 +303,19 @@ export class GoalsController {
   @Post('debt-strategy')
   @ApiOperation({ summary: 'Set debt payoff strategy' })
   @ApiResponse({ status: 200, description: 'Debt strategy applied' })
-  setDebtStrategy(@GetUser('id') userId: string, @Body() dto: SetDebtStrategyDto) {
+  setDebtStrategy(
+    @GetUser('id') userId: string,
+    @Body() dto: SetDebtStrategyDto,
+  ) {
     return this.goalsService.setDebtStrategy(userId, dto);
   }
 
   @Post('debt-payoff/calculate')
   @ApiOperation({ summary: 'Calculate debt payoff scenarios' })
-  @ApiResponse({ status: 200, description: 'Debt payoff calculation completed' })
+  @ApiResponse({
+    status: 200,
+    description: 'Debt payoff calculation completed',
+  })
   calculateDebtPayoff(
     @GetUser('id') userId: string,
     @Body() dto: CalculateDebtPayoffDto,
@@ -322,7 +351,10 @@ export class GoalsController {
 
   @Get(':goalId/ai/achievement-probability')
   @ApiOperation({ summary: 'Calculate goal achievement probability' })
-  @ApiResponse({ status: 200, description: 'Achievement probability calculated' })
+  @ApiResponse({
+    status: 200,
+    description: 'Achievement probability calculated',
+  })
   calculateAchievementProbability(
     @GetUser('id') userId: string,
     @Param('goalId') goalId: string,
@@ -365,7 +397,11 @@ export class GoalsController {
   @Get('leaderboard')
   @ApiOperation({ summary: 'Get gamification leaderboard' })
   @ApiResponse({ status: 200, description: 'Leaderboard data' })
-  @ApiQuery({ name: 'period', required: false, enum: ['week', 'month', 'all-time'] })
+  @ApiQuery({
+    name: 'period',
+    required: false,
+    enum: ['week', 'month', 'all-time'],
+  })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   getLeaderboard(
     @Query('period') period?: 'week' | 'month' | 'all-time',

@@ -1,15 +1,19 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateBudgetDto, UpdateBudgetDto } from './dto';
 import { createPaginatedResponse } from '../common/utils/pagination.util';
 import { AIBudgetService } from '../common/services/ai-budget.service';
 import {
-  CreateBudgetTemplateDto,
-  ApplyBudgetTemplateDto,
   AddBudgetCollaboratorDto,
+  ApplyBudgetTemplateDto,
+  CreateBudgetTemplateDto,
   CreateWhatIfScenarioDto,
-  RolloverBudgetDto,
   EnvelopeAllocationDto,
+  RolloverBudgetDto,
 } from './dto/budget-ai.dto';
 
 @Injectable()
@@ -35,14 +39,20 @@ export class BudgetsService {
   async findAll(
     userId: string,
     period?: string,
+    organizationId?: string,
     page: number = 1,
     limit: number = 10,
   ) {
     const where: {
       userId: string;
       isActive: boolean;
+      organizationId: string | null;
       period?: string;
-    } = { userId, isActive: true };
+    } = {
+      userId,
+      isActive: true,
+      organizationId: organizationId || null,
+    };
 
     if (period) {
       where.period = period;
@@ -520,7 +530,10 @@ export class BudgetsService {
       this.findOne(toBudgetId, userId),
     ]);
 
-    if (fromBudget.budgetingMethod !== 'ENVELOPE' || toBudget.budgetingMethod !== 'ENVELOPE') {
+    if (
+      fromBudget.budgetingMethod !== 'ENVELOPE' ||
+      toBudget.budgetingMethod !== 'ENVELOPE'
+    ) {
       throw new BadRequestException('Both budgets must be envelope budgets');
     }
 
@@ -616,7 +629,11 @@ export class BudgetsService {
   // BUDGET PERFORMANCE & ANALYTICS
   // ============================================
 
-  async getBudgetPerformance(userId: string, startPeriod: string, endPeriod: string) {
+  async getBudgetPerformance(
+    userId: string,
+    startPeriod: string,
+    endPeriod: string,
+  ) {
     const budgets = await this.prisma.budget.findMany({
       where: {
         userId,
@@ -630,44 +647,51 @@ export class BudgetsService {
     });
 
     // Calculate performance metrics
-    const performance = budgets.reduce((acc, budget) => {
-      const utilization = (budget.spent / budget.amount) * 100;
-      const variance = budget.amount - budget.spent;
-      const success = utilization <= 100;
+    const performance = budgets.reduce(
+      (acc, budget) => {
+        const utilization = (budget.spent / budget.amount) * 100;
+        const variance = budget.amount - budget.spent;
+        const success = utilization <= 100;
 
-      if (!acc[budget.period]) {
-        acc[budget.period] = {
-          period: budget.period,
-          totalBudget: 0,
-          totalSpent: 0,
-          totalVariance: 0,
-          successfulBudgets: 0,
-          totalBudgets: 0,
-          categories: [],
-        };
-      }
+        if (!acc[budget.period]) {
+          acc[budget.period] = {
+            period: budget.period,
+            totalBudget: 0,
+            totalSpent: 0,
+            totalVariance: 0,
+            successfulBudgets: 0,
+            totalBudgets: 0,
+            categories: [],
+          };
+        }
 
-      acc[budget.period].totalBudget += budget.amount;
-      acc[budget.period].totalSpent += budget.spent;
-      acc[budget.period].totalVariance += variance;
-      acc[budget.period].totalBudgets += 1;
-      if (success) acc[budget.period].successfulBudgets += 1;
+        acc[budget.period].totalBudget += budget.amount;
+        acc[budget.period].totalSpent += budget.spent;
+        acc[budget.period].totalVariance += variance;
+        acc[budget.period].totalBudgets += 1;
+        if (success) acc[budget.period].successfulBudgets += 1;
 
-      acc[budget.period].categories.push({
-        name: budget.category?.name || 'Uncategorized',
-        budget: budget.amount,
-        spent: budget.spent,
-        utilization,
-        variance,
-      });
+        acc[budget.period].categories.push({
+          name: budget.category?.name || 'Uncategorized',
+          budget: budget.amount,
+          spent: budget.spent,
+          utilization,
+          variance,
+        });
 
-      return acc;
-    }, {} as Record<string, any>);
+        return acc;
+      },
+      {} as Record<string, any>,
+    );
 
     return Object.values(performance);
   }
 
-  async getZeroBasedBudgetAllocation(userId: string, period: string, totalIncome: number) {
+  async getZeroBasedBudgetAllocation(
+    userId: string,
+    period: string,
+    totalIncome: number,
+  ) {
     // Get AI recommendations for optimal allocation
     const analysis = await this.aiBudgetService.analyzeSpendingPatterns(
       userId,
@@ -697,4 +721,3 @@ export class BudgetsService {
     };
   }
 }
-

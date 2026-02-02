@@ -54,7 +54,10 @@ export class TransactionsService {
   }
 
   async findAll(userId: string, filters?: FilterTransactionsDto) {
-    const where: any = { userId };
+    const where: any = {
+      userId,
+      organizationId: filters?.organizationId || null,
+    };
 
     if (filters?.accountId) {
       where.accountId = filters.accountId;

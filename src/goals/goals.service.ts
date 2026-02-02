@@ -1,18 +1,22 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateGoalDto, UpdateGoalDto } from './dto';
 import { createPaginatedResponse } from '../common/utils/pagination.util';
 import { AIGoalService } from '../common/services/ai-goal.service';
 import {
-  CreateGoalMilestoneDto,
-  AddGoalContributionDto,
   AddGoalCollaboratorDto,
-  CreateSavingsRuleDto,
-  UpdateSavingsRuleDto,
-  SetGoalPriorityDto,
-  SetDebtStrategyDto,
+  AddGoalContributionDto,
   AutoContributeConfigDto,
   CalculateDebtPayoffDto,
+  CreateGoalMilestoneDto,
+  CreateSavingsRuleDto,
+  SetDebtStrategyDto,
+  SetGoalPriorityDto,
+  UpdateSavingsRuleDto,
 } from './dto/goal-ai.dto';
 
 @Injectable()
@@ -35,16 +39,22 @@ export class GoalsService {
     });
   }
 
-  async findAll(userId: string, page: number = 1, limit: number = 10) {
-    const where = { userId, isActive: true };
+  async findAll(
+    userId: string,
+    organizationId?: string,
+    page: number = 1,
+    limit: number = 10,
+  ) {
+    const where = {
+      userId,
+      isActive: true,
+      organizationId: organizationId || null,
+    };
 
     const [docs, totalDocs] = await Promise.all([
       this.prisma.goal.findMany({
         where,
-        orderBy: [
-          { status: 'asc' },
-          { targetDate: 'asc' },
-        ],
+        orderBy: [{ status: 'asc' }, { targetDate: 'asc' }],
         skip: (page - 1) * limit,
         take: limit,
       }),
@@ -189,7 +199,11 @@ export class GoalsService {
   // GOAL CONTRIBUTIONS
   // ============================================
 
-  async addContribution(userId: string, goalId: string, dto: AddGoalContributionDto) {
+  async addContribution(
+    userId: string,
+    goalId: string,
+    dto: AddGoalContributionDto,
+  ) {
     const goal = await this.findOne(goalId, userId);
 
     // Calculate gamification rewards
@@ -227,7 +241,10 @@ export class GoalsService {
         currentStreak: newStreak,
         longestStreak: Math.max(goal.longestStreak, newStreak),
         lastContributionDate: new Date(),
-        badges: rewards.badgesEarned.length > 0 ? { push: rewards.badgesEarned } : undefined,
+        badges:
+          rewards.badgesEarned.length > 0
+            ? { push: rewards.badgesEarned }
+            : undefined,
         level: rewards.levelUp ? rewards.newLevel : goal.level,
       },
     });
@@ -271,9 +288,13 @@ export class GoalsService {
     });
 
     // Calculate statistics
-    const totalContributed = contributions.reduce((sum, c) => sum + c.amount, 0);
+    const totalContributed = contributions.reduce(
+      (sum, c) => sum + c.amount,
+      0,
+    );
     const totalXP = contributions.reduce((sum, c) => sum + c.xpEarned, 0);
-    const averageContribution = contributions.length > 0 ? totalContributed / contributions.length : 0;
+    const averageContribution =
+      contributions.length > 0 ? totalContributed / contributions.length : 0;
 
     return {
       contributions,
@@ -290,7 +311,11 @@ export class GoalsService {
   // GOAL COLLABORATION
   // ============================================
 
-  async addCollaborator(userId: string, goalId: string, dto: AddGoalCollaboratorDto) {
+  async addCollaborator(
+    userId: string,
+    goalId: string,
+    dto: AddGoalCollaboratorDto,
+  ) {
     await this.findOne(goalId, userId);
 
     const existing = await this.prisma.goalCollaborator.findUnique({
@@ -336,7 +361,11 @@ export class GoalsService {
     });
   }
 
-  async removeCollaborator(userId: string, goalId: string, collaboratorId: string) {
+  async removeCollaborator(
+    userId: string,
+    goalId: string,
+    collaboratorId: string,
+  ) {
     await this.findOne(goalId, userId);
 
     return this.prisma.goalCollaborator.delete({
@@ -379,7 +408,11 @@ export class GoalsService {
     });
   }
 
-  async updateSavingsRule(userId: string, ruleId: string, dto: UpdateSavingsRuleDto) {
+  async updateSavingsRule(
+    userId: string,
+    ruleId: string,
+    dto: UpdateSavingsRuleDto,
+  ) {
     const rule = await this.prisma.savingsRule.findFirst({
       where: { id: ruleId, userId },
     });
@@ -427,7 +460,9 @@ export class GoalsService {
       case 'ROUND_UP':
         if (transactionAmount) {
           const roundUpTo = config.roundUpTo || 1;
-          savingsAmount = Math.ceil(transactionAmount / roundUpTo) * roundUpTo - transactionAmount;
+          savingsAmount =
+            Math.ceil(transactionAmount / roundUpTo) * roundUpTo -
+            transactionAmount;
         }
         break;
 
@@ -534,7 +569,8 @@ export class GoalsService {
     } else if (dto.strategy === 'SNOWBALL') {
       // Sort by balance (smallest first)
       const sorted = [...debtGoals].sort(
-        (a, b) => (a.targetAmount - a.currentAmount) - (b.targetAmount - b.currentAmount),
+        (a, b) =>
+          a.targetAmount - a.currentAmount - (b.targetAmount - b.currentAmount),
       );
       for (let i = 0; i < sorted.length; i++) {
         await this.prisma.goal.update({
@@ -582,11 +618,15 @@ export class GoalsService {
     // Calculate payoff with minimum payments only
     let totalInterestMinimum = 0;
     let monthsToPayoffMinimum = 0;
-    
+
     debts.forEach((debt) => {
       const monthlyRate = debt.interestRate / 12 / 100;
       if (monthlyRate > 0 && debt.minimumPayment > 0) {
-        const months = Math.log(debt.minimumPayment / (debt.minimumPayment - debt.balance * monthlyRate)) / Math.log(1 + monthlyRate);
+        const months =
+          Math.log(
+            debt.minimumPayment /
+              (debt.minimumPayment - debt.balance * monthlyRate),
+          ) / Math.log(1 + monthlyRate);
         const totalPaid = debt.minimumPayment * months;
         totalInterestMinimum += totalPaid - debt.balance;
         monthsToPayoffMinimum = Math.max(monthsToPayoffMinimum, months);
@@ -596,7 +636,7 @@ export class GoalsService {
     // Calculate with extra payment
     const strategy = dto.strategy || 'AVALANCHE';
     let sortedDebts = [...debts];
-    
+
     if (strategy === 'SNOWBALL') {
       sortedDebts.sort((a, b) => a.balance - b.balance);
     } else {
@@ -628,7 +668,10 @@ export class GoalsService {
 
       // Apply extra payment to highest priority debt
       if (remainingDebts.length > 0 && extraPaymentRemaining > 0) {
-        const extraPayment = Math.min(remainingDebts[0].balance, extraPaymentRemaining);
+        const extraPayment = Math.min(
+          remainingDebts[0].balance,
+          extraPaymentRemaining,
+        );
         remainingDebts[0].balance -= extraPayment;
       }
 
@@ -655,7 +698,9 @@ export class GoalsService {
         months: monthsToPayoffWithExtra,
         totalInterest: Math.round(totalInterestWithExtra),
         monthsSaved: Math.ceil(monthsToPayoffMinimum) - monthsToPayoffWithExtra,
-        interestSaved: Math.round(totalInterestMinimum - totalInterestWithExtra),
+        interestSaved: Math.round(
+          totalInterestMinimum - totalInterestWithExtra,
+        ),
       },
     };
   }
@@ -664,7 +709,11 @@ export class GoalsService {
   // AUTO-CONTRIBUTE
   // ============================================
 
-  async configureAutoContribute(userId: string, goalId: string, dto: AutoContributeConfigDto) {
+  async configureAutoContribute(
+    userId: string,
+    goalId: string,
+    dto: AutoContributeConfigDto,
+  ) {
     await this.findOne(goalId, userId);
 
     return this.prisma.goal.update({
@@ -693,7 +742,10 @@ export class GoalsService {
       try {
         // Check if contribution is due based on frequency
         const daysSinceLastContribution = goal.lastContributionDate
-          ? Math.floor((now.getTime() - goal.lastContributionDate.getTime()) / (1000 * 60 * 60 * 24))
+          ? Math.floor(
+              (now.getTime() - goal.lastContributionDate.getTime()) /
+                (1000 * 60 * 60 * 24),
+            )
           : 999;
 
         let shouldContribute = false;
@@ -723,7 +775,10 @@ export class GoalsService {
           processed.push({ goalId: goal.id, ...result });
         }
       } catch (error) {
-        console.error(`Failed to process auto-contribution for goal ${goal.id}:`, error);
+        console.error(
+          `Failed to process auto-contribution for goal ${goal.id}:`,
+          error,
+        );
       }
     }
 
@@ -769,7 +824,10 @@ export class GoalsService {
   // GAMIFICATION & LEADERBOARD
   // ============================================
 
-  async getLeaderboard(period: 'week' | 'month' | 'all-time' = 'month', limit: number = 10) {
+  async getLeaderboard(
+    period: 'week' | 'month' | 'all-time' = 'month',
+    limit: number = 10,
+  ) {
     const now = new Date();
     let startDate: Date | undefined;
 
@@ -793,20 +851,23 @@ export class GoalsService {
     });
 
     // Aggregate by user
-    const userScores = goals.reduce((acc, goal) => {
-      if (!acc[goal.userId]) {
-        acc[goal.userId] = {
-          userId: goal.userId,
-          totalXP: 0,
-          level: 0,
-          badges: new Set<string>(),
-        };
-      }
-      acc[goal.userId].totalXP += goal.xpPoints;
-      acc[goal.userId].level = Math.max(acc[goal.userId].level, goal.level);
-      goal.badges.forEach((badge) => acc[goal.userId].badges.add(badge));
-      return acc;
-    }, {} as Record<string, any>);
+    const userScores = goals.reduce(
+      (acc, goal) => {
+        if (!acc[goal.userId]) {
+          acc[goal.userId] = {
+            userId: goal.userId,
+            totalXP: 0,
+            level: 0,
+            badges: new Set<string>(),
+          };
+        }
+        acc[goal.userId].totalXP += goal.xpPoints;
+        acc[goal.userId].level = Math.max(acc[goal.userId].level, goal.level);
+        goal.badges.forEach((badge) => acc[goal.userId].badges.add(badge));
+        return acc;
+      },
+      {} as Record<string, any>,
+    );
 
     const leaderboard = Object.values(userScores)
       .sort((a: any, b: any) => b.totalXP - a.totalXP)
@@ -836,10 +897,15 @@ export class GoalsService {
     const maxLevel = Math.max(...goals.map((g) => g.level), 0);
     const maxStreak = Math.max(...goals.map((g) => g.longestStreak), 0);
     const totalContributions = contributions.length;
-    const totalContributed = contributions.reduce((sum, c) => sum + c.amount, 0);
+    const totalContributed = contributions.reduce(
+      (sum, c) => sum + c.amount,
+      0,
+    );
 
     const completedGoals = goals.filter((g) => g.status === 'COMPLETED').length;
-    const activeGoals = goals.filter((g) => g.isActive && g.status !== 'COMPLETED').length;
+    const activeGoals = goals.filter(
+      (g) => g.isActive && g.status !== 'COMPLETED',
+    ).length;
 
     return {
       totalXP,
@@ -879,25 +945,42 @@ export class GoalsService {
     // Calculate metrics
     const totalGoals = goals.length;
     const completedGoals = goals.filter((g) => g.status === 'COMPLETED').length;
-    const completionRate = totalGoals > 0 ? (completedGoals / totalGoals) * 100 : 0;
+    const completionRate =
+      totalGoals > 0 ? (completedGoals / totalGoals) * 100 : 0;
 
     const totalTargetAmount = goals.reduce((sum, g) => sum + g.targetAmount, 0);
-    const totalCurrentAmount = goals.reduce((sum, g) => sum + g.currentAmount, 0);
-    const overallProgress = totalTargetAmount > 0 ? (totalCurrentAmount / totalTargetAmount) * 100 : 0;
+    const totalCurrentAmount = goals.reduce(
+      (sum, g) => sum + g.currentAmount,
+      0,
+    );
+    const overallProgress =
+      totalTargetAmount > 0
+        ? (totalCurrentAmount / totalTargetAmount) * 100
+        : 0;
 
     const totalContributions = contributions.length;
-    const totalContributed = contributions.reduce((sum, c) => sum + c.amount, 0);
-    const averageContribution = totalContributions > 0 ? totalContributed / totalContributions : 0;
+    const totalContributed = contributions.reduce(
+      (sum, c) => sum + c.amount,
+      0,
+    );
+    const averageContribution =
+      totalContributions > 0 ? totalContributed / totalContributions : 0;
 
-    const goalsByType = goals.reduce((acc, g) => {
-      acc[g.type] = (acc[g.type] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
+    const goalsByType = goals.reduce(
+      (acc, g) => {
+        acc[g.type] = (acc[g.type] || 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
 
-    const goalsByStatus = goals.reduce((acc, g) => {
-      acc[g.status] = (acc[g.status] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
+    const goalsByStatus = goals.reduce(
+      (acc, g) => {
+        acc[g.status] = (acc[g.status] || 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
 
     return {
       summary: {
@@ -926,4 +1009,3 @@ export class GoalsService {
     };
   }
 }
-

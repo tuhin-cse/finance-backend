@@ -1,12 +1,12 @@
 import {
-  IsString,
-  IsOptional,
-  IsNumber,
-  IsEnum,
-  IsDate,
   IsBoolean,
-  Min,
+  IsDate,
+  IsEnum,
+  IsNumber,
+  IsOptional,
+  IsString,
   Max,
+  Min,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -81,7 +81,9 @@ export class CreateGoalDto {
   @IsOptional()
   categoryId?: string;
 
-  @ApiPropertyOptional({ description: 'Account ID for automatic contributions' })
+  @ApiPropertyOptional({
+    description: 'Account ID for automatic contributions',
+  })
   @IsString()
   @IsOptional()
   accountId?: string;
@@ -156,4 +158,9 @@ export class CreateGoalDto {
   @IsBoolean()
   @IsOptional()
   isShared?: boolean;
+
+  @ApiPropertyOptional({ description: 'Organization ID' })
+  @IsString()
+  @IsOptional()
+  organizationId?: string;
 }

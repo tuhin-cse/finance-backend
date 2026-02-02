@@ -1,13 +1,13 @@
 import {
-  IsString,
-  IsOptional,
-  IsNumber,
   IsEnum,
   IsInt,
+  IsNumber,
+  IsOptional,
+  IsString,
   Min,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { TransactionType, TransactionStatus } from './create-transaction.dto';
+import { TransactionStatus, TransactionType } from './create-transaction.dto';
 
 export class FilterTransactionsDto {
   @IsString()
@@ -59,4 +59,8 @@ export class FilterTransactionsDto {
   @IsOptional()
   @Type(() => Number)
   limit?: number;
+
+  @IsString()
+  @IsOptional()
+  organizationId?: string;
 }

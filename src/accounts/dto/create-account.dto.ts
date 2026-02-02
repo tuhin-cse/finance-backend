@@ -1,9 +1,9 @@
 import {
-  IsString,
-  IsOptional,
-  IsNumber,
   IsBoolean,
   IsEnum,
+  IsNumber,
+  IsOptional,
+  IsString,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -22,7 +22,11 @@ export class CreateAccountDto {
   @IsString()
   name: string;
 
-  @ApiProperty({ enum: AccountType, example: AccountType.CHECKING, description: 'Account type' })
+  @ApiProperty({
+    enum: AccountType,
+    example: AccountType.CHECKING,
+    description: 'Account type',
+  })
   @IsEnum(AccountType)
   type: AccountType;
 
@@ -31,12 +35,18 @@ export class CreateAccountDto {
   @IsOptional()
   subType?: string;
 
-  @ApiPropertyOptional({ example: 'Chase Bank', description: 'Financial institution name' })
+  @ApiPropertyOptional({
+    example: 'Chase Bank',
+    description: 'Financial institution name',
+  })
   @IsString()
   @IsOptional()
   institutionName?: string;
 
-  @ApiPropertyOptional({ example: '****1234', description: 'Last 4 digits of account number' })
+  @ApiPropertyOptional({
+    example: '****1234',
+    description: 'Last 4 digits of account number',
+  })
   @IsString()
   @IsOptional()
   accountNumber?: string;
@@ -46,12 +56,15 @@ export class CreateAccountDto {
   @IsOptional()
   routingNumber?: string;
 
-  @ApiPropertyOptional({ example: 5000.00, description: 'Current account balance' })
+  @ApiPropertyOptional({
+    example: 5000.0,
+    description: 'Current account balance',
+  })
   @IsNumber()
   @IsOptional()
   currentBalance?: number;
 
-  @ApiPropertyOptional({ example: 4800.00, description: 'Available balance' })
+  @ApiPropertyOptional({ example: 4800.0, description: 'Available balance' })
   @IsNumber()
   @IsOptional()
   availableBalance?: number;
@@ -76,17 +89,26 @@ export class CreateAccountDto {
   @IsOptional()
   plaidAccessToken?: string;
 
-  @ApiPropertyOptional({ example: true, description: 'Whether account is connected to bank' })
+  @ApiPropertyOptional({
+    example: true,
+    description: 'Whether account is connected to bank',
+  })
   @IsBoolean()
   @IsOptional()
   isConnected?: boolean;
 
-  @ApiPropertyOptional({ example: true, description: 'Mark as primary account' })
+  @ApiPropertyOptional({
+    example: true,
+    description: 'Mark as primary account',
+  })
   @IsBoolean()
   @IsOptional()
   isPrimary?: boolean;
 
-  @ApiPropertyOptional({ example: false, description: 'Exclude from budget calculations' })
+  @ApiPropertyOptional({
+    example: false,
+    description: 'Exclude from budget calculations',
+  })
   @IsBoolean()
   @IsOptional()
   excludeFromBudget?: boolean;

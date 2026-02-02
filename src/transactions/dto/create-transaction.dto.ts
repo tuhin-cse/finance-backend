@@ -1,12 +1,12 @@
 import {
-  IsString,
-  IsOptional,
-  IsNumber,
-  IsEnum,
-  IsDate,
-  IsBoolean,
   IsArray,
+  IsBoolean,
+  IsDate,
+  IsEnum,
+  IsNumber,
   IsObject,
+  IsOptional,
+  IsString,
   Min,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -53,7 +53,11 @@ export class CreateTransactionDto {
   @IsEnum(TransactionType)
   type: TransactionType;
 
-  @ApiPropertyOptional({ enum: TransactionStatus, description: 'Transaction status', default: 'POSTED' })
+  @ApiPropertyOptional({
+    enum: TransactionStatus,
+    description: 'Transaction status',
+    default: 'POSTED',
+  })
   @IsEnum(TransactionStatus)
   @IsOptional()
   status?: TransactionStatus;
@@ -132,4 +136,9 @@ export class CreateTransactionDto {
   @IsString()
   @IsOptional()
   externalId?: string;
+
+  @ApiPropertyOptional({ description: 'Organization ID' })
+  @IsString()
+  @IsOptional()
+  organizationId?: string;
 }

@@ -1,7 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAccountDto, UpdateAccountDto } from './dto';
-import { createPaginatedResponse } from '../common/utils/pagination.util';
 
 @Injectable()
 export class AccountsService {
@@ -16,29 +15,23 @@ export class AccountsService {
     });
   }
 
-  async findAll(userId: string, organizationId?: string, page: number = 1, limit: number = 10) {
-    const where: any = { userId, isActive: true };
+  async findAll(userId: string, organizationId?: string) {
+    const where: {
+      userId: string;
+      isActive: boolean;
+      organizationId?: string | null;
+    } = { userId, isActive: true };
 
     if (organizationId) {
       where.organizationId = organizationId;
+    } else {
+      where.organizationId = null;
     }
 
-    const [docs, totalDocs] = await Promise.all([
-      this.prisma.account.findMany({
-        where,
-        include: {
-          _count: {
-            select: { transactions: true },
-          },
-        },
-        orderBy: [{ isPrimary: 'desc' }, { createdAt: 'desc' }],
-        skip: (page - 1) * limit,
-        take: limit,
-      }),
-      this.prisma.account.count({ where }),
-    ]);
-
-    return createPaginatedResponse(docs, totalDocs, page, limit);
+    return this.prisma.account.findMany({
+      where,
+      orderBy: [{ isPrimary: 'desc' }, { createdAt: 'desc' }],
+    });
   }
 
   async findOne(id: string, userId: string) {
