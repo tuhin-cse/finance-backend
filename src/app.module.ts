@@ -17,6 +17,8 @@ import { ProductsModule } from './products/products.module';
 import { ProjectsModule } from './projects/projects.module';
 import { ExpensesModule } from './expenses/expenses.module';
 import { CommonModule } from './common/common.module';
+import { DebtsModule } from './debts/debts.module';
+import { InvestmentsModule } from './investments/investments.module';
 
 @Module({
   imports: [
@@ -36,6 +38,8 @@ import { CommonModule } from './common/common.module';
     ProductsModule,
     ProjectsModule,
     ExpensesModule,
+    DebtsModule,
+    InvestmentsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
