@@ -338,7 +338,7 @@ model Budget {
 
   name            String
   type            BudgetType // MONTHLY, WEEKLY, ANNUAL, CUSTOM
-  budgetingMethod BudgetingMethod @default(TRADITIONAL) // TRADITIONAL, ZERO_BASED, ENVELOPE
+  budgetingMethod BudgetingMethod @default(TRADITIONAL) // TRADITIONAL, ZERO_BASED, ENVELOPE, FIFTY_THIRTY_TWENTY, PAY_YOURSELF_FIRST, PERCENTAGE_BASED 
   amount          Float
   period          String // YYYY-MM for monthly
   startDate       DateTime
@@ -1596,9 +1596,12 @@ enum NotificationType {
 }
 
 enum BudgetingMethod {
-  TRADITIONAL
-  ZERO_BASED
-  ENVELOPE
+  TRADITIONAL // Simple income minus expenses
+  ZERO_BASED // Every dollar has a purpose
+  ENVELOPE // Allocate to categories like envelopes
+  FIFTY_THIRTY_TWENTY // 50% needs, 30% wants, 20% savings
+  PAY_YOURSELF_FIRST // Savings first, then expenses
+  PERCENTAGE_BASED // Percentage allocation to categories
 }
 
 enum CollaboratorRole {
