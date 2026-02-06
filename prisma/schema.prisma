@@ -146,6 +146,7 @@ model Organization {
   inventory    InventoryItem[]
   budgets      Budget[]
   goals        Goal[]
+  investments  Investment[]
 
   // Metadata
   isActive  Boolean  @default(true)
@@ -338,7 +339,7 @@ model Budget {
 
   name            String
   type            BudgetType // MONTHLY, WEEKLY, ANNUAL, CUSTOM
-  budgetingMethod BudgetingMethod @default(TRADITIONAL) // TRADITIONAL, ZERO_BASED, ENVELOPE, FIFTY_THIRTY_TWENTY, PAY_YOURSELF_FIRST, PERCENTAGE_BASED 
+  budgetingMethod BudgetingMethod @default(TRADITIONAL) // TRADITIONAL, ZERO_BASED, ENVELOPE, FIFTY_THIRTY_TWENTY, PAY_YOURSELF_FIRST, PERCENTAGE_BASED
   amount          Float
   period          String // YYYY-MM for monthly
   startDate       DateTime
@@ -373,9 +374,11 @@ model Budget {
   isShared Boolean @default(false)
 
   // Relations
-  collaborators   BudgetCollaborator[]
-  scenarios       BudgetScenario[]
-  recommendations AIRecommendation[]
+  collaborators      BudgetCollaborator[]
+  scenarios          BudgetScenario[]
+  recommendations    AIRecommendation[]
+  allocations        BudgetAllocation[]
+  budgetTransactions BudgetTransaction[]
 
   // Metadata
   isActive  Boolean  @default(true)
@@ -462,6 +465,120 @@ model BudgetScenario {
   @@index([budgetId])
   @@index([userId])
   @@map("budget_scenarios")
+}
+
+model BudgetAllocation {
+  id       String @id @default(uuid())
+  budgetId String
+  budget   Budget @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+
+  // Allocation details
+  categoryId     String?
+  name           String // e.g., "Needs", "Wants", "Savings" for 50/30/20
+  allocationType AllocationType // FIXED, PERCENTAGE, ENVELOPE, REMAINDER
+
+  // Amount configuration
+  amount     Float // Fixed amount or calculated from percentage
+  percentage Float? // For percentage-based allocations
+
+  // Tracking
+  spent     Float @default(0)
+  remaining Float @default(0)
+
+  // For envelope budgeting
+  isEnvelope Boolean @default(false)
+
+  // Metadata
+  priority  Int      @default(0) // Order/priority of allocation
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  budgetTransactions BudgetTransaction[] @relation("AllocationTransactions")
+  transfersFrom      BudgetTransaction[] @relation("FromAllocation")
+  transfersTo        BudgetTransaction[] @relation("ToAllocation")
+
+  @@index([budgetId])
+  @@index([categoryId])
+  @@map("budget_allocations")
+}
+
+model BudgetTransaction {
+  id           String @id @default(uuid())
+  budgetId     String
+  budget       Budget @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  allocationId String?
+  allocation   BudgetAllocation? @relation("AllocationTransactions", fields: [allocationId], references: [id])
+
+  transactionId String? // Link to main Transaction
+
+  // Transaction details
+  type        BudgetTransactionType // EXPENSE, TRANSFER_IN, TRANSFER_OUT, ADJUSTMENT, REFUND
+  amount      Float
+  description String?
+  date        DateTime              @default(now())
+
+  // For transfers between allocations/envelopes
+  fromAllocationId String?
+  fromAllocation   BudgetAllocation? @relation("FromAllocation", fields: [fromAllocationId], references: [id])
+  toAllocationId   String?
+  toAllocation     BudgetAllocation? @relation("ToAllocation", fields: [toAllocationId], references: [id])
+
+  // Metadata
+  createdBy String
+  createdAt DateTime @default(now())
+
+  @@index([budgetId])
+  @@index([allocationId])
+  @@index([date])
+  @@map("budget_transactions")
+}
+
+model RecurringTransaction {
+  id         String  @id @default(uuid())
+  userId     String
+  accountId  String?
+  categoryId String?
+  budgetId   String?
+
+  // Transaction template
+  name        String
+  description String?
+  amount      Float
+  type        TransactionType // INCOME, EXPENSE
+
+  // Recurrence configuration
+  frequency   RecurrenceFrequency // DAILY, WEEKLY, BI_WEEKLY, MONTHLY, QUARTERLY, ANNUALLY
+  interval    Int                 @default(1) // Every X periods
+  dayOfWeek   Int? // 0-6 for weekly
+  dayOfMonth  Int? // 1-31 for monthly
+  monthOfYear Int? // 1-12 for annually
+
+  // Schedule
+  startDate         DateTime
+  endDate           DateTime?
+  nextDueDate       DateTime
+  lastProcessedDate DateTime?
+
+  // Processing
+  autoProcess  Boolean @default(false) // Auto-create transactions
+  reminderDays Int     @default(3) // Days before to remind
+  skipWeekends Boolean @default(false)
+
+  // Tracking
+  occurrencesCount     Int   @default(0)
+  totalAmountProcessed Float @default(0)
+
+  // Metadata
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([nextDueDate])
+  @@index([isActive])
+  @@map("recurring_transactions")
 }
 
 model Goal {
@@ -675,9 +792,11 @@ model AIRecommendation {
 }
 
 model Investment {
-  id        String  @id @default(uuid())
-  userId    String
-  accountId String?
+  id             String        @id @default(uuid())
+  userId         String
+  accountId      String?
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
 
   symbol        String
   name          String
@@ -1665,4 +1784,28 @@ enum RecommendationType {
   FORECASTING
   DEBT_PAYOFF
   INVESTMENT_ADVICE
+}
+
+enum AllocationType {
+  FIXED // Fixed dollar amount
+  PERCENTAGE // Percentage of total
+  ENVELOPE // Envelope allocation
+  REMAINDER // Whatever is left
+}
+
+enum BudgetTransactionType {
+  EXPENSE
+  TRANSFER_IN
+  TRANSFER_OUT
+  ADJUSTMENT
+  REFUND
+}
+
+enum RecurrenceFrequency {
+  DAILY
+  WEEKLY
+  BI_WEEKLY
+  MONTHLY
+  QUARTERLY
+  ANNUALLY
 }

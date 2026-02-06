@@ -31,6 +31,14 @@ import {
   ForecastExpensesDto,
   RolloverBudgetDto,
 } from './dto/budget-ai.dto';
+import {
+  CreateBudgetAllocationDto,
+  UpdateBudgetAllocationDto,
+  CreateBudgetTransactionDto,
+  TransferBetweenAllocationsDto,
+  Setup50_30_20Dto,
+  SetupPayYourselfFirstDto,
+} from './dto/budget-allocation.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { GetUser } from '../auth/decorators/get-user.decorator';
 
@@ -39,7 +47,7 @@ import { GetUser } from '../auth/decorators/get-user.decorator';
 @Controller('budgets')
 @UseGuards(JwtAuthGuard)
 export class BudgetsController {
-  constructor(private readonly budgetsService: BudgetsService) {}
+  constructor(private readonly budgetsService: BudgetsService) { }
 
   @Post()
   @ApiOperation({ summary: 'Create a new budget' })
@@ -430,4 +438,135 @@ export class BudgetsController {
       body.totalIncome,
     );
   }
+
+  // ============================================
+  // BUDGET ALLOCATIONS
+  // ============================================
+
+  @Post(':budgetId/allocations')
+  @ApiOperation({ summary: 'Create an allocation within a budget' })
+  @ApiResponse({ status: 201, description: 'Allocation created successfully' })
+  createAllocation(
+    @GetUser('id') userId: string,
+    @Param('budgetId') budgetId: string,
+    @Body() dto: CreateBudgetAllocationDto,
+  ) {
+    return this.budgetsService.createAllocation(userId, budgetId, dto);
+  }
+
+  @Get(':budgetId/allocations')
+  @ApiOperation({ summary: 'Get all allocations for a budget' })
+  @ApiResponse({ status: 200, description: 'List of allocations' })
+  getAllocations(
+    @GetUser('id') userId: string,
+    @Param('budgetId') budgetId: string,
+  ) {
+    return this.budgetsService.getAllocations(userId, budgetId);
+  }
+
+  @Patch(':budgetId/allocations/:allocationId')
+  @ApiOperation({ summary: 'Update an allocation' })
+  @ApiResponse({ status: 200, description: 'Allocation updated successfully' })
+  updateAllocation(
+    @GetUser('id') userId: string,
+    @Param('budgetId') budgetId: string,
+    @Param('allocationId') allocationId: string,
+    @Body() dto: UpdateBudgetAllocationDto,
+  ) {
+    return this.budgetsService.updateAllocation(userId, budgetId, allocationId, dto);
+  }
+
+  @Delete(':budgetId/allocations/:allocationId')
+  @ApiOperation({ summary: 'Delete an allocation' })
+  @ApiResponse({ status: 200, description: 'Allocation deleted successfully' })
+  deleteAllocation(
+    @GetUser('id') userId: string,
+    @Param('budgetId') budgetId: string,
+    @Param('allocationId') allocationId: string,
+  ) {
+    return this.budgetsService.deleteAllocation(userId, budgetId, allocationId);
+  }
+
+  // ============================================
+  // BUDGET TRANSACTIONS
+  // ============================================
+
+  @Post(':budgetId/transactions')
+  @ApiOperation({ summary: 'Record a transaction against a budget' })
+  @ApiResponse({ status: 201, description: 'Transaction recorded successfully' })
+  recordBudgetTransaction(
+    @GetUser('id') userId: string,
+    @Param('budgetId') budgetId: string,
+    @Body() dto: CreateBudgetTransactionDto,
+  ) {
+    return this.budgetsService.recordBudgetTransaction(userId, budgetId, dto);
+  }
+
+  @Get(':budgetId/transactions')
+  @ApiOperation({ summary: 'Get transactions for a budget' })
+  @ApiQuery({
+    name: 'allocationId',
+    required: false,
+    description: 'Filter by allocation ID',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    description: 'Page number',
+    type: Number,
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Items per page',
+    type: Number,
+  })
+  @ApiResponse({ status: 200, description: 'Paginated list of budget transactions' })
+  getBudgetTransactions(
+    @GetUser('id') userId: string,
+    @Param('budgetId') budgetId: string,
+    @Query('allocationId') allocationId?: string,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number = 1,
+    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number = 20,
+  ) {
+    return this.budgetsService.getBudgetTransactions(userId, budgetId, allocationId, page, limit);
+  }
+
+  @Post(':budgetId/allocations/transfer')
+  @ApiOperation({ summary: 'Transfer funds between allocations' })
+  @ApiResponse({ status: 200, description: 'Transfer completed successfully' })
+  transferBetweenAllocations(
+    @GetUser('id') userId: string,
+    @Param('budgetId') budgetId: string,
+    @Body() dto: TransferBetweenAllocationsDto,
+  ) {
+    return this.budgetsService.transferBetweenAllocations(userId, budgetId, dto);
+  }
+
+  // ============================================
+  // QUICK SETUP METHODS
+  // ============================================
+
+  @Post(':budgetId/setup-50-30-20')
+  @ApiOperation({ summary: 'Quick setup 50/30/20 budget allocations' })
+  @ApiResponse({ status: 201, description: '50/30/20 allocations created' })
+  setup50_30_20(
+    @GetUser('id') userId: string,
+    @Param('budgetId') budgetId: string,
+    @Body() dto: Setup50_30_20Dto,
+  ) {
+    return this.budgetsService.setup50_30_20(userId, budgetId, dto);
+  }
+
+  @Post(':budgetId/setup-pay-yourself-first')
+  @ApiOperation({ summary: 'Quick setup Pay Yourself First budget allocations' })
+  @ApiResponse({ status: 201, description: 'Pay Yourself First allocations created' })
+  setupPayYourselfFirst(
+    @GetUser('id') userId: string,
+    @Param('budgetId') budgetId: string,
+    @Body() dto: SetupPayYourselfFirstDto,
+  ) {
+    return this.budgetsService.setupPayYourselfFirst(userId, budgetId, dto);
+  }
 }
+

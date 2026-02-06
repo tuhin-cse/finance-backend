@@ -15,13 +15,23 @@ import {
   EnvelopeAllocationDto,
   RolloverBudgetDto,
 } from './dto/budget-ai.dto';
+import {
+  CreateBudgetAllocationDto,
+  UpdateBudgetAllocationDto,
+  CreateBudgetTransactionDto,
+  TransferBetweenAllocationsDto,
+  Setup50_30_20Dto,
+  SetupPayYourselfFirstDto,
+  AllocationType,
+  BudgetTransactionType,
+} from './dto/budget-allocation.dto';
 
 @Injectable()
 export class BudgetsService {
   constructor(
     private prisma: PrismaService,
     private aiBudgetService: AIBudgetService,
-  ) {}
+  ) { }
 
   async create(userId: string, createBudgetDto: CreateBudgetDto) {
     return this.prisma.budget.create({
@@ -718,6 +728,354 @@ export class BudgetsService {
       unallocated,
       allocation,
       recommendations: analysis.insights,
+    };
+  }
+
+  // ============================================
+  // BUDGET ALLOCATIONS
+  // ============================================
+
+  async createAllocation(
+    userId: string,
+    budgetId: string,
+    dto: CreateBudgetAllocationDto,
+  ) {
+    const budget = await this.findOne(budgetId, userId);
+
+    return this.prisma.budgetAllocation.create({
+      data: {
+        budgetId,
+        name: dto.name,
+        allocationType: dto.allocationType,
+        amount: dto.amount,
+        percentage: dto.percentage,
+        categoryId: dto.categoryId,
+        isEnvelope: dto.isEnvelope || false,
+        priority: dto.priority || 0,
+        remaining: dto.amount,
+      },
+    });
+  }
+
+  async getAllocations(userId: string, budgetId: string) {
+    await this.findOne(budgetId, userId);
+
+    return this.prisma.budgetAllocation.findMany({
+      where: { budgetId, isActive: true },
+      orderBy: { priority: 'asc' },
+    });
+  }
+
+  async updateAllocation(
+    userId: string,
+    budgetId: string,
+    allocationId: string,
+    dto: UpdateBudgetAllocationDto,
+  ) {
+    await this.findOne(budgetId, userId);
+
+    const allocation = await this.prisma.budgetAllocation.findFirst({
+      where: { id: allocationId, budgetId },
+    });
+
+    if (!allocation) {
+      throw new NotFoundException('Allocation not found');
+    }
+
+    return this.prisma.budgetAllocation.update({
+      where: { id: allocationId },
+      data: dto,
+    });
+  }
+
+  async deleteAllocation(
+    userId: string,
+    budgetId: string,
+    allocationId: string,
+  ) {
+    await this.findOne(budgetId, userId);
+
+    return this.prisma.budgetAllocation.update({
+      where: { id: allocationId },
+      data: { isActive: false },
+    });
+  }
+
+  // ============================================
+  // BUDGET TRANSACTIONS
+  // ============================================
+
+  async recordBudgetTransaction(
+    userId: string,
+    budgetId: string,
+    dto: CreateBudgetTransactionDto,
+  ) {
+    const budget = await this.findOne(budgetId, userId);
+
+    const transaction = await this.prisma.budgetTransaction.create({
+      data: {
+        budgetId,
+        allocationId: dto.allocationId,
+        transactionId: dto.transactionId,
+        type: dto.type,
+        amount: dto.amount,
+        description: dto.description,
+        date: dto.date || new Date(),
+        createdBy: userId,
+      },
+    });
+
+    // Update allocation spent/remaining if linked
+    if (dto.allocationId && dto.type === BudgetTransactionType.EXPENSE) {
+      await this.prisma.budgetAllocation.update({
+        where: { id: dto.allocationId },
+        data: {
+          spent: { increment: dto.amount },
+          remaining: { decrement: dto.amount },
+        },
+      });
+    }
+
+    // Update budget spent
+    if (dto.type === BudgetTransactionType.EXPENSE) {
+      await this.prisma.budget.update({
+        where: { id: budgetId },
+        data: {
+          spent: { increment: dto.amount },
+          remaining: { decrement: dto.amount },
+        },
+      });
+    }
+
+    return transaction;
+  }
+
+  async getBudgetTransactions(
+    userId: string,
+    budgetId: string,
+    allocationId?: string,
+    page: number = 1,
+    limit: number = 20,
+  ) {
+    await this.findOne(budgetId, userId);
+
+    const where: any = { budgetId };
+    if (allocationId) {
+      where.allocationId = allocationId;
+    }
+
+    const [docs, totalDocs] = await Promise.all([
+      this.prisma.budgetTransaction.findMany({
+        where,
+        orderBy: { date: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+        include: {
+          allocation: true,
+        },
+      }),
+      this.prisma.budgetTransaction.count({ where }),
+    ]);
+
+    return createPaginatedResponse(docs, totalDocs, page, limit);
+  }
+
+  async transferBetweenAllocations(
+    userId: string,
+    budgetId: string,
+    dto: TransferBetweenAllocationsDto,
+  ) {
+    await this.findOne(budgetId, userId);
+
+    const [fromAllocation, toAllocation] = await Promise.all([
+      this.prisma.budgetAllocation.findFirst({
+        where: { id: dto.fromAllocationId, budgetId },
+      }),
+      this.prisma.budgetAllocation.findFirst({
+        where: { id: dto.toAllocationId, budgetId },
+      }),
+    ]);
+
+    if (!fromAllocation || !toAllocation) {
+      throw new NotFoundException('Allocation not found');
+    }
+
+    if (fromAllocation.remaining < dto.amount) {
+      throw new BadRequestException('Insufficient funds in source allocation');
+    }
+
+    // Perform transfer in transaction
+    await this.prisma.$transaction([
+      // Deduct from source
+      this.prisma.budgetAllocation.update({
+        where: { id: dto.fromAllocationId },
+        data: {
+          amount: { decrement: dto.amount },
+          remaining: { decrement: dto.amount },
+        },
+      }),
+      // Add to destination
+      this.prisma.budgetAllocation.update({
+        where: { id: dto.toAllocationId },
+        data: {
+          amount: { increment: dto.amount },
+          remaining: { increment: dto.amount },
+        },
+      }),
+      // Record transfer out
+      this.prisma.budgetTransaction.create({
+        data: {
+          budgetId,
+          allocationId: dto.fromAllocationId,
+          type: 'TRANSFER_OUT',
+          amount: dto.amount,
+          description: dto.description || `Transfer to ${toAllocation.name}`,
+          fromAllocationId: dto.fromAllocationId,
+          toAllocationId: dto.toAllocationId,
+          createdBy: userId,
+        },
+      }),
+      // Record transfer in
+      this.prisma.budgetTransaction.create({
+        data: {
+          budgetId,
+          allocationId: dto.toAllocationId,
+          type: 'TRANSFER_IN',
+          amount: dto.amount,
+          description: dto.description || `Transfer from ${fromAllocation.name}`,
+          fromAllocationId: dto.fromAllocationId,
+          toAllocationId: dto.toAllocationId,
+          createdBy: userId,
+        },
+      }),
+    ]);
+
+    return {
+      success: true,
+      amount: dto.amount,
+      from: dto.fromAllocationId,
+      to: dto.toAllocationId,
+    };
+  }
+
+  // ============================================
+  // QUICK SETUP METHODS
+  // ============================================
+
+  async setup50_30_20(userId: string, budgetId: string, dto: Setup50_30_20Dto) {
+    const budget = await this.findOne(budgetId, userId);
+
+    if (budget.budgetingMethod !== 'FIFTY_THIRTY_TWENTY') {
+      await this.prisma.budget.update({
+        where: { id: budgetId },
+        data: { budgetingMethod: 'FIFTY_THIRTY_TWENTY', amount: dto.totalAmount },
+      });
+    }
+
+    const allocations = [
+      {
+        name: 'Needs',
+        percentage: 50,
+        amount: dto.totalAmount * 0.5,
+        categoryId: dto.needsCategoryId,
+        priority: 1,
+      },
+      {
+        name: 'Wants',
+        percentage: 30,
+        amount: dto.totalAmount * 0.3,
+        categoryId: dto.wantsCategoryId,
+        priority: 2,
+      },
+      {
+        name: 'Savings',
+        percentage: 20,
+        amount: dto.totalAmount * 0.2,
+        categoryId: dto.savingsCategoryId,
+        priority: 3,
+      },
+    ];
+
+    const created = await Promise.all(
+      allocations.map((alloc) =>
+        this.prisma.budgetAllocation.create({
+          data: {
+            budgetId,
+            name: alloc.name,
+            allocationType: 'PERCENTAGE',
+            amount: alloc.amount,
+            percentage: alloc.percentage,
+            categoryId: alloc.categoryId,
+            remaining: alloc.amount,
+            priority: alloc.priority,
+          },
+        }),
+      ),
+    );
+
+    return {
+      budget: await this.findOne(budgetId, userId),
+      allocations: created,
+    };
+  }
+
+  async setupPayYourselfFirst(
+    userId: string,
+    budgetId: string,
+    dto: SetupPayYourselfFirstDto,
+  ) {
+    const budget = await this.findOne(budgetId, userId);
+
+    if (budget.budgetingMethod !== 'PAY_YOURSELF_FIRST') {
+      await this.prisma.budget.update({
+        where: { id: budgetId },
+        data: {
+          budgetingMethod: 'PAY_YOURSELF_FIRST',
+          amount: dto.totalIncome,
+        },
+      });
+    }
+
+    const savingsAmount = dto.totalIncome * (dto.savingsPercentage / 100);
+    const expensesAmount = dto.totalIncome - savingsAmount;
+
+    const allocations = [
+      {
+        name: 'Savings (Pay Yourself First)',
+        percentage: dto.savingsPercentage,
+        amount: savingsAmount,
+        categoryId: dto.savingsCategoryId,
+        priority: 1, // Savings comes first!
+      },
+      {
+        name: 'Expenses',
+        percentage: 100 - dto.savingsPercentage,
+        amount: expensesAmount,
+        categoryId: dto.expensesCategoryId,
+        priority: 2,
+      },
+    ];
+
+    const created = await Promise.all(
+      allocations.map((alloc) =>
+        this.prisma.budgetAllocation.create({
+          data: {
+            budgetId,
+            name: alloc.name,
+            allocationType: 'PERCENTAGE',
+            amount: alloc.amount,
+            percentage: alloc.percentage,
+            categoryId: alloc.categoryId,
+            remaining: alloc.amount,
+            priority: alloc.priority,
+          },
+        }),
+      ),
+    );
+
+    return {
+      budget: await this.findOne(budgetId, userId),
+      allocations: created,
     };
   }
 }

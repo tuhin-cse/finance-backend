@@ -6,36 +6,36 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { Investment } from '@prisma/client';
 import {
-  CreateInvestmentDto,
-  UpdateInvestmentDto,
-  PortfolioValueDto,
-  HoldingDto,
-  AssetAllocationDto,
-  PerformanceDto,
-  CryptoPortfolioDto,
-  CryptoHoldingDto,
-  ChainBreakdownDto,
-  DeFiPortfolioDto,
-  DeFiPositionDetail,
-  ProtocolBreakdownDto,
-  DeFiEarningsDto,
-  NFTPortfolioDto,
-  NFTDetail,
-  NFTCollectionDto,
-  StakingPortfolioDto,
-  StakingDetail,
-  YieldFarmingPortfolioDto,
-  YieldFarmDetail,
-  AssetAllocationAnalysis,
   AllocationBreakdown,
   AllocationDeviation,
-  RebalanceRecommendation,
-  SetTargetAllocationDto,
-  RebalanceAlert,
-  PortfolioMetrics,
+  AssetAllocationAnalysis,
+  AssetAllocationDto,
+  ChainBreakdownDto,
+  CreateInvestmentDto,
+  CryptoHoldingDto,
+  CryptoPortfolioDto,
+  DeFiEarningsDto,
+  DeFiPortfolioDto,
+  DeFiPositionDetail,
   DiversificationMetrics,
+  HoldingDto,
+  NFTCollectionDto,
+  NFTDetail,
+  NFTPortfolioDto,
+  PerformanceDto,
+  PortfolioMetrics,
+  PortfolioValueDto,
+  ProtocolBreakdownDto,
+  RebalanceAlert,
+  RebalanceRecommendation,
   RiskMetrics,
+  SetTargetAllocationDto,
+  StakingDetail,
+  StakingPortfolioDto,
   SUPPORTED_CHAINS,
+  UpdateInvestmentDto,
+  YieldFarmDetail,
+  YieldFarmingPortfolioDto,
 } from './dto';
 import { createPaginatedResponse } from '../common/utils/pagination.util';
 
@@ -68,11 +68,16 @@ export class InvestmentsService {
 
   async findAll(
     userId: string,
+    organizationId?: string,
     page: number = 1,
     limit: number = 10,
     type?: string,
   ) {
-    const where: { userId: string; type?: any } = { userId };
+    const where: { userId: string; organizationId: string | null; type?: any } =
+      {
+        userId,
+        organizationId: organizationId || null,
+      };
     if (type) {
       where.type = type;
     }
@@ -112,7 +117,11 @@ export class InvestmentsService {
     }
 
     // Recalculate metrics if price or quantity changed
-    if (updateDto.quantity || updateDto.currentPrice || updateDto.purchasePrice) {
+    if (
+      updateDto.quantity ||
+      updateDto.currentPrice ||
+      updateDto.purchasePrice
+    ) {
       const investment = await this.findOne(id, userId);
       const quantity = updateDto.quantity ?? investment.quantity;
       const currentPrice = updateDto.currentPrice ?? investment.currentPrice;
@@ -170,7 +179,10 @@ export class InvestmentsService {
       };
     }
 
-    const totalValue = investments.reduce((sum, inv) => sum + inv.totalValue, 0);
+    const totalValue = investments.reduce(
+      (sum, inv) => sum + inv.totalValue,
+      0,
+    );
     const totalCost = investments.reduce(
       (sum, inv) => sum + inv.quantity * inv.purchasePrice,
       0,
@@ -199,7 +211,10 @@ export class InvestmentsService {
       allocation: (inv.totalValue / totalValue) * 100,
     }));
 
-    const assetAllocation = this.calculateAssetAllocation(investments, totalValue);
+    const assetAllocation = this.calculateAssetAllocation(
+      investments,
+      totalValue,
+    );
 
     const performance: PerformanceDto = {
       oneDay: 1.2,
@@ -400,7 +415,11 @@ export class InvestmentsService {
     };
   }
 
-  async syncCryptoWallet(userId: string, walletAddress: string, blockchain: string) {
+  async syncCryptoWallet(
+    userId: string,
+    walletAddress: string,
+    blockchain: string,
+  ) {
     // In production, integrate with blockchain explorers/APIs
     // For now, return simulated data
     return {
@@ -522,26 +541,23 @@ export class InvestmentsService {
     const totalValue = nfts.reduce((sum, nft) => sum + nft.estimatedValue, 0);
     const floorValueSum = nfts.reduce((sum, nft) => sum + nft.floorPrice, 0);
 
-    const collections: NFTCollectionDto[] = nfts.reduce(
-      (acc, nft) => {
-        const existing = acc.find((c) => c.name === nft.collection);
-        if (existing) {
-          existing.count += 1;
-          existing.totalValue += nft.estimatedValue;
-        } else {
-          acc.push({
-            contractAddress: nft.contractAddress,
-            name: nft.collection,
-            count: 1,
-            floorPrice: nft.floorPrice,
-            totalValue: nft.estimatedValue,
-            blockchain: nft.blockchain,
-          });
-        }
-        return acc;
-      },
-      [] as NFTCollectionDto[],
-    );
+    const collections: NFTCollectionDto[] = nfts.reduce((acc, nft) => {
+      const existing = acc.find((c) => c.name === nft.collection);
+      if (existing) {
+        existing.count += 1;
+        existing.totalValue += nft.estimatedValue;
+      } else {
+        acc.push({
+          contractAddress: nft.contractAddress,
+          name: nft.collection,
+          count: 1,
+          floorPrice: nft.floorPrice,
+          totalValue: nft.estimatedValue,
+          blockchain: nft.blockchain,
+        });
+      }
+      return acc;
+    }, [] as NFTCollectionDto[]);
 
     return {
       totalValue,
@@ -580,7 +596,10 @@ export class InvestmentsService {
       },
     ];
 
-    const totalStaked = positions.reduce((sum, pos) => sum + pos.currentValue, 0);
+    const totalStaked = positions.reduce(
+      (sum, pos) => sum + pos.currentValue,
+      0,
+    );
     const totalRewards = positions.reduce((sum, pos) => sum + pos.rewards, 0);
     const averageApy =
       positions.reduce((sum, pos) => sum + pos.apy, 0) / positions.length;
@@ -626,8 +645,7 @@ export class InvestmentsService {
 
     const totalValue = farms.reduce((sum, farm) => sum + farm.totalValue, 0);
     const totalRewards = farms.reduce(
-      (sum, farm) =>
-        sum + farm.rewards.reduce((s, r) => s + r.value, 0),
+      (sum, farm) => sum + farm.rewards.reduce((s, r) => s + r.value, 0),
       0,
     );
     const averageApy =
@@ -654,7 +672,10 @@ export class InvestmentsService {
       throw new BadRequestException('No investments found');
     }
 
-    const totalValue = investments.reduce((sum, inv) => sum + inv.totalValue, 0);
+    const totalValue = investments.reduce(
+      (sum, inv) => sum + inv.totalValue,
+      0,
+    );
 
     const current: AllocationBreakdown[] = this.calculateAllocationBreakdown(
       investments,
@@ -813,12 +834,13 @@ export class InvestmentsService {
   async setTargetAllocation(_userId: string, dto: SetTargetAllocationDto) {
     // In production, store in database
     // For now, just validate and return
-    const total = dto.allocations.reduce((sum, a) => sum + a.targetPercentage, 0);
+    const total = dto.allocations.reduce(
+      (sum, a) => sum + a.targetPercentage,
+      0,
+    );
 
     if (Math.abs(total - 100) > 0.1) {
-      throw new BadRequestException(
-        'Target allocations must sum to 100%',
-      );
+      throw new BadRequestException('Target allocations must sum to 100%');
     }
 
     return {
@@ -851,7 +873,8 @@ export class InvestmentsService {
         recommendations: analysis.recommendations.filter((r) =>
           significantDeviations.some((d) => d.category === r.symbol),
         ),
-        severity: maxDeviation > 15 ? 'HIGH' : maxDeviation > 10 ? 'MEDIUM' : 'LOW',
+        severity:
+          maxDeviation > 15 ? 'HIGH' : maxDeviation > 10 ? 'MEDIUM' : 'LOW',
         message: `Portfolio is out of balance. ${significantDeviations.length} asset ${significantDeviations.length === 1 ? 'class' : 'classes'} deviate${significantDeviations.length === 1 ? 's' : ''} from target allocation.`,
       });
     }
@@ -898,7 +921,10 @@ export class InvestmentsService {
     const concentrationRisk = herfindahlIndex;
 
     const diversification: DiversificationMetrics = {
-      score: this.calculateDiversificationScore(investments, allocationBreakdown),
+      score: this.calculateDiversificationScore(
+        investments,
+        allocationBreakdown,
+      ),
       assetCount,
       categoryCount,
       concentrationRisk,
